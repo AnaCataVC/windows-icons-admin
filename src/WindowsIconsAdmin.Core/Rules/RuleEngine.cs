@@ -1,0 +1,122 @@
+using System.Text.RegularExpressions;
+
+namespace WindowsIconsAdmin.Core.Rules;
+
+public static class RuleEngine
+{
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
+
+    public static IReadOnlyList<RuleMatch> Evaluate(
+        IEnumerable<string> folderPaths,
+        IEnumerable<FolderRule> rules)
+    {
+        ArgumentNullException.ThrowIfNull(folderPaths);
+        ArgumentNullException.ThrowIfNull(rules);
+
+        var paths = folderPaths.ToList();
+        if (paths.Any(p => p is null))
+        {
+            throw new ArgumentException("Folder paths cannot contain null elements.", nameof(folderPaths));
+        }
+
+        var ruleList = rules.ToList();
+        if (ruleList.Any(r => r is null))
+        {
+            throw new ArgumentException("Rules cannot contain null elements.", nameof(rules));
+        }
+
+        var ordered = ruleList
+            .Where(r => r.Enabled)
+            .Select((rule, index) => (rule, index))
+            .OrderBy(x => x.rule.Priority)
+            .ThenBy(x => x.index)
+            .Select(x => Compile(x.rule))
+            .ToList();
+
+        var results = new List<RuleMatch>(paths.Count);
+        foreach (var path in paths)
+        {
+            var name = ExtractName(path);
+            FolderRule? matched = null;
+            if (name.Length > 0)
+            {
+                foreach (var candidate in ordered)
+                {
+                    if (candidate.IsMatch(name))
+                    {
+                        matched = candidate.Rule;
+                        break;
+                    }
+                }
+            }
+
+            results.Add(new RuleMatch(path, matched));
+        }
+
+        return results;
+    }
+
+    private static string ExtractName(string path)
+    {
+        var trimmed = path.TrimEnd('\\', '/');
+        var index = trimmed.LastIndexOfAny(['\\', '/']);
+        var name = index >= 0 ? trimmed[(index + 1)..] : trimmed;
+        return name.Length == 2 && name[1] == ':' && index < 0 ? string.Empty : name;
+    }
+
+    private static CompiledRule Compile(FolderRule rule)
+    {
+        if (rule.Condition != RuleCondition.Regex)
+        {
+            return new CompiledRule(rule, null);
+        }
+
+        var options = RegexOptions.CultureInvariant;
+        if (!rule.CaseSensitive)
+        {
+            options |= RegexOptions.IgnoreCase;
+        }
+
+        try
+        {
+            return new CompiledRule(rule, new Regex(rule.Pattern ?? string.Empty, options, RegexTimeout));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidRuleException($"Rule '{rule.Name}' has an invalid regular expression.", ex);
+        }
+    }
+
+    private sealed record CompiledRule(FolderRule Rule, Regex? Regex)
+    {
+        public bool IsMatch(string name)
+        {
+            if (Regex is not null)
+            {
+                try
+                {
+                    return Regex.IsMatch(name);
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    return false;
+                }
+            }
+
+            var pattern = Rule.Pattern;
+            if (string.IsNullOrEmpty(pattern))
+            {
+                return false;
+            }
+
+            var comparison = Rule.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            return Rule.Condition switch
+            {
+                RuleCondition.Contains => name.Contains(pattern, comparison),
+                RuleCondition.StartsWith => name.StartsWith(pattern, comparison),
+                RuleCondition.EndsWith => name.EndsWith(pattern, comparison),
+                _ => false
+            };
+        }
+    }
+}

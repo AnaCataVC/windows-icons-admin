@@ -1,0 +1,292 @@
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
+using WindowsIconsAdmin.Core.History;
+
+namespace WindowsIconsAdmin.Core.Shell;
+
+public class ShellIconService
+{
+    // Win32 File Attributes
+    public const uint FILE_ATTRIBUTE_READONLY = 0x00000001;
+    public const uint FILE_ATTRIBUTE_HIDDEN = 0x00000002;
+    public const uint FILE_ATTRIBUTE_SYSTEM = 0x00000004;
+    public const uint FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+    public const uint FILE_ATTRIBUTE_NORMAL = 0x00000080;
+    public const uint INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF;
+
+    // Shell Change Notify Events
+    public const uint SHCNE_UPDATEITEM = 0x00002000;
+    public const uint SHCNE_ASSOCCHANGED = 0x08000000;
+    public const uint SHCNF_IDLIST = 0x0000;
+    public const uint SHCNF_PATHW = 0x0005;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetFileAttributesW(string lpFileName, uint dwFileAttributes);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFileAttributesW(string lpFileName);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+    // CLSIDs for System Icons
+    private static readonly Dictionary<SystemIconKind, (string Clsid, string ValueName)> SystemIconClsids = new()
+    {
+        [SystemIconKind.RecycleBinEmpty] = ("{645FF040-5081-101B-9F08-00AA002F954E}", "empty"),
+        [SystemIconKind.RecycleBinFull] = ("{645FF040-5081-101B-9F08-00AA002F954E}", "full"),
+        [SystemIconKind.ThisPC] = ("{20D04FE0-3AEA-1069-A2D8-08002B30309D}", ""),
+        [SystemIconKind.Network] = ("{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}", ""),
+        [SystemIconKind.UserFiles] = ("{59031a47-3f72-44a7-89c5-5595fe6b30ee}", "")
+    };
+
+    public virtual FolderSnapshot ApplyFolderIcon(
+        string folderPath,
+        string iconResource,
+        string? copiedFileName = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconResource);
+
+        if (!Directory.Exists(folderPath))
+        {
+            throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
+        }
+
+        var iniPath = Path.Combine(folderPath, "desktop.ini");
+        var snapshot = CaptureSnapshot(folderPath, copiedFileName);
+
+        var existingContent = File.Exists(iniPath) ? ReadAllTextSafe(iniPath) : null;
+        var updatedContent = IniHelper.SetIconResource(existingContent, iconResource);
+
+        // Normalize attributes before writing so Windows doesn't block with WinError 5
+        if (File.Exists(iniPath))
+        {
+            SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
+        }
+
+        File.WriteAllText(iniPath, updatedContent);
+
+        // Required attributes: Hidden + System on desktop.ini
+        SetAttributes(iniPath, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+
+        // Required attribute on folder: ReadOnly (or System)
+        var folderAttrs = GetAttributes(folderPath);
+        if ((folderAttrs & FILE_ATTRIBUTE_READONLY) == 0 && (folderAttrs & FILE_ATTRIBUTE_SYSTEM) == 0)
+        {
+            SetAttributes(folderPath, folderAttrs | FILE_ATTRIBUTE_READONLY);
+        }
+
+        // Notify Explorer for this specific folder
+        NotifyFolderUpdated(folderPath);
+
+        return snapshot;
+    }
+
+    public virtual FolderSnapshot RestoreFolderDefault(string folderPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
+
+        if (!Directory.Exists(folderPath))
+        {
+            throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
+        }
+
+        var iniPath = Path.Combine(folderPath, "desktop.ini");
+        var snapshot = CaptureSnapshot(folderPath, null);
+
+        if (File.Exists(iniPath))
+        {
+            SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
+            var content = ReadAllTextSafe(iniPath);
+            var remaining = IniHelper.RemoveShellClassInfo(content);
+
+            if (remaining is not null)
+            {
+                File.WriteAllText(iniPath, remaining);
+                SetAttributes(iniPath, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+            }
+            else
+            {
+                File.Delete(iniPath);
+            }
+        }
+
+        // Also clean up any embedded icon if present (.folder_icon.ico)
+        var embeddedIcon = Path.Combine(folderPath, ".folder_icon.ico");
+        if (File.Exists(embeddedIcon))
+        {
+            SetAttributes(embeddedIcon, FILE_ATTRIBUTE_NORMAL);
+            File.Delete(embeddedIcon);
+        }
+
+        // Remove ReadOnly / System attributes from folder
+        var folderAttrs = GetAttributes(folderPath);
+        var cleanedAttrs = folderAttrs & ~(FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
+        if (cleanedAttrs == 0) cleanedAttrs = FILE_ATTRIBUTE_NORMAL;
+        SetAttributes(folderPath, cleanedAttrs);
+
+        NotifyFolderUpdated(folderPath);
+        return snapshot;
+    }
+
+    public virtual void RevertFolder(FolderSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        if (!Directory.Exists(snapshot.FolderPath))
+        {
+            return;
+        }
+
+        var iniPath = Path.Combine(snapshot.FolderPath, "desktop.ini");
+
+        // Remove copied icon if present
+        if (!string.IsNullOrEmpty(snapshot.CopiedIconFileName))
+        {
+            var copiedPath = Path.Combine(snapshot.FolderPath, snapshot.CopiedIconFileName);
+            if (File.Exists(copiedPath))
+            {
+                SetAttributes(copiedPath, FILE_ATTRIBUTE_NORMAL);
+                File.Delete(copiedPath);
+            }
+        }
+
+        if (snapshot.HadDesktopIni)
+        {
+            if (File.Exists(iniPath))
+            {
+                SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
+            }
+
+            File.WriteAllText(iniPath, snapshot.PreviousDesktopIniContent ?? string.Empty);
+            var iniAttrs = snapshot.PreviousDesktopIniAttributes ?? (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+            SetAttributes(iniPath, iniAttrs);
+        }
+        else
+        {
+            if (File.Exists(iniPath))
+            {
+                SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
+                File.Delete(iniPath);
+            }
+        }
+
+        // Restore folder attributes
+        SetAttributes(snapshot.FolderPath, snapshot.PreviousFolderAttributes);
+        NotifyFolderUpdated(snapshot.FolderPath);
+    }
+
+    public virtual void NotifyBatchCompleted()
+    {
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    public virtual void SetSystemIcon(SystemIconKind kind, string iconPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
+        if (!SystemIconClsids.TryGetValue(kind, out var info))
+        {
+            throw new NotSupportedException($"Unsupported system icon kind: {kind}");
+        }
+
+        var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
+        using var key = Registry.CurrentUser.CreateSubKey(keyPath, writable: true);
+        key.SetValue(info.ValueName, iconPath, RegistryValueKind.String);
+
+        // For Recycle Bin, also set default if setting empty/full
+        if (kind == SystemIconKind.RecycleBinEmpty)
+        {
+            key.SetValue("", iconPath, RegistryValueKind.String);
+        }
+
+        NotifyBatchCompleted();
+    }
+
+    public virtual void RestoreSystemIcon(SystemIconKind kind)
+    {
+        if (!SystemIconClsids.TryGetValue(kind, out var info))
+        {
+            throw new NotSupportedException($"Unsupported system icon kind: {kind}");
+        }
+
+        var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
+        using var key = Registry.CurrentUser.OpenSubKey(keyPath, writable: true);
+        if (key != null)
+        {
+            if (string.IsNullOrEmpty(info.ValueName))
+            {
+                key.DeleteValue("", false);
+            }
+            else
+            {
+                key.DeleteValue(info.ValueName, false);
+                if (kind == SystemIconKind.RecycleBinEmpty)
+                {
+                    key.DeleteValue("", false);
+                }
+            }
+        }
+
+        NotifyBatchCompleted();
+    }
+
+    public virtual string? GetCurrentSystemIcon(SystemIconKind kind)
+    {
+        if (!SystemIconClsids.TryGetValue(kind, out var info)) return null;
+
+        var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
+        using var key = Registry.CurrentUser.OpenSubKey(keyPath);
+        if (key == null) return null;
+
+        return key.GetValue(info.ValueName) as string;
+    }
+
+    private static FolderSnapshot CaptureSnapshot(string folderPath, string? copiedFileName)
+    {
+        var iniPath = Path.Combine(folderPath, "desktop.ini");
+        var hadIni = File.Exists(iniPath);
+        string? content = null;
+        uint? iniAttrs = null;
+
+        if (hadIni)
+        {
+            content = ReadAllTextSafe(iniPath);
+            var a = GetAttributes(iniPath);
+            if (a != INVALID_FILE_ATTRIBUTES) iniAttrs = a;
+        }
+
+        var fAttrs = GetAttributes(folderPath);
+        if (fAttrs == INVALID_FILE_ATTRIBUTES) fAttrs = FILE_ATTRIBUTE_DIRECTORY;
+
+        return new FolderSnapshot(
+            folderPath,
+            hadIni,
+            content,
+            fAttrs,
+            iniAttrs,
+            copiedFileName);
+    }
+
+    private static string ReadAllTextSafe(string path)
+    {
+        // If file has hidden/system, File.ReadAllText can read, but normalization avoids locks
+        return File.ReadAllText(path);
+    }
+
+    private static uint GetAttributes(string path) => GetFileAttributesW(path);
+
+    private static void SetAttributes(string path, uint attrs) => SetFileAttributesW(path, attrs);
+
+    private static void NotifyFolderUpdated(string folderPath)
+    {
+        var ptr = Marshal.StringToHGlobalUni(folderPath);
+        try
+        {
+            SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, ptr, IntPtr.Zero);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(ptr);
+        }
+    }
+}

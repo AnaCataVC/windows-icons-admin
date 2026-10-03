@@ -1,0 +1,80 @@
+<ContentDialog
+    x:Class="WindowsIconsAdmin_App.Dialogs.RulesDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="Reglas de Asignación Automática"
+    PrimaryButtonText="Cerrar"
+    DefaultButton="Primary"
+    mc:Ignorable="d">
+
+    <Grid Width="580" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MaxHeight="260" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Define reglas para asignar iconos según el nombre de la carpeta:"
+                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+        <ListView x:Name="RulesListView" Grid.Row="1" SelectionMode="Single" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="4">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnSpacing="8" Padding="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Summary}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Eliminar" Click="OnDeleteRuleClick" Tag="{Binding}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <StackPanel Grid.Row="2" Spacing="8">
+            <TextBlock Text="Agregar nueva regla:" FontWeight="SemiBold" />
+            <Grid ColumnSpacing="8" RowSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="3*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBox x:Name="RuleNameBox" Grid.Row="0" Grid.Column="0" PlaceholderText="Nombre de regla" />
+                <ComboBox x:Name="ConditionBox" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0">
+                    <ComboBoxItem Content="Contiene" Tag="Contains" />
+                    <ComboBoxItem Content="Empieza con" Tag="StartsWith" />
+                    <ComboBoxItem Content="Termina con" Tag="EndsWith" />
+                    <ComboBoxItem Content="Regex" Tag="Regex" />
+                </ComboBox>
+                <TextBox x:Name="PatternBox" Grid.Row="0" Grid.Column="2" PlaceholderText="Patrón (ej. proyecto)" />
+
+                <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="IconPathBox" Grid.Column="0" PlaceholderText="Ruta del icono (.ico o .png)" IsReadOnly="True" />
+                    <Button Grid.Column="1" Content="Examinar..." Click="OnBrowseIconClick" />
+                </Grid>
+
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="12">
+                    <CheckBox x:Name="CaseSensitiveBox" Content="Sensible a mayúsculas" />
+                    <Button Content="Guardar regla" Click="OnAddRuleClick" />
+                    <Button Content="Aplicar reglas a carpetas" Click="OnApplyRulesClick" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</ContentDialog>

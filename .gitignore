@@ -1,0 +1,33 @@
+# Build and toolchain outputs
+bin/
+obj/
+releases/
+dist/
+TestResults/
+coverage.*
+
+# Visual Studio & IDE artifacts
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosv
+*.suo
+*.pubxml
+
+# Secrets & Environment
+.env
+*.env.*
+
+# Windows Shell & File System noise
+desktop.ini
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# App logs and crash dumps
+*.log
+crash.log
+startup_diagnostic.log
+*.bak
+*.tmp

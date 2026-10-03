@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WindowsIconsAdmin.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "WindowsIconsAdmin.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

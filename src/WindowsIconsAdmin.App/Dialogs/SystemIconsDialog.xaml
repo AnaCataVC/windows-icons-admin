@@ -1,0 +1,73 @@
+<ContentDialog
+    x:Class="WindowsIconsAdmin_App.Dialogs.SystemIconsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="Iconos del Sistema"
+    PrimaryButtonText="Cerrar"
+    DefaultButton="Primary"
+    mc:Ignorable="d">
+
+    <StackPanel Width="540" Spacing="16">
+        <TextBlock Text="Personaliza los iconos de escritorio del sistema para tu usuario (HKCU):"
+                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+        <Grid RowSpacing="12" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Papelera vacía -->
+            <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Papelera de reciclaje (Vacía)" FontWeight="SemiBold" />
+                <TextBlock x:Name="RecycleEmptyStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeRecycleEmptyClick" />
+            <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreRecycleEmptyClick" />
+
+            <!-- Papelera llena -->
+            <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Papelera de reciclaje (Llena)" FontWeight="SemiBold" />
+                <TextBlock x:Name="RecycleFullStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Row="1" Grid.Column="1" Content="Cambiar..." Click="OnChangeRecycleFullClick" />
+            <Button Grid.Row="1" Grid.Column="2" Content="Restaurar" Click="OnRestoreRecycleFullClick" />
+
+            <!-- Este equipo -->
+            <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Este equipo" FontWeight="SemiBold" />
+                <TextBlock x:Name="ThisPcStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Row="2" Grid.Column="1" Content="Cambiar..." Click="OnChangeThisPcClick" />
+            <Button Grid.Row="2" Grid.Column="2" Content="Restaurar" Click="OnRestoreThisPcClick" />
+
+            <!-- Red -->
+            <StackPanel Grid.Row="3" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Red" FontWeight="SemiBold" />
+                <TextBlock x:Name="NetworkStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Row="3" Grid.Column="1" Content="Cambiar..." Click="OnChangeNetworkClick" />
+            <Button Grid.Row="3" Grid.Column="2" Content="Restaurar" Click="OnRestoreNetworkClick" />
+
+            <!-- Archivos de usuario -->
+            <StackPanel Grid.Row="4" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Archivos de usuario" FontWeight="SemiBold" />
+                <TextBlock x:Name="UserFilesStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Row="4" Grid.Column="1" Content="Cambiar..." Click="OnChangeUserFilesClick" />
+            <Button Grid.Row="4" Grid.Column="2" Content="Restaurar" Click="OnRestoreUserFilesClick" />
+        </Grid>
+
+        <InfoBar x:Name="SystemInfoBar" IsOpen="False" Severity="Success" />
+    </StackPanel>
+</ContentDialog>
