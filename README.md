@@ -107,7 +107,7 @@ Clone the repository and run the test suite:
 
 ```powershell
 # Clone repository
-git clone https://github.com/your-username/windows-icons-admin.git
+git clone https://github.com/AnaCataVC/windows-icons-admin.git
 cd windows-icons-admin
 
 # Restore and build solution
@@ -116,6 +116,18 @@ dotnet build
 # Execute cleanroom test suite
 dotnet test
 ```
+
+---
+
+## Key Learnings
+
+Building and architecting WindowsIconsAdmin under Cleanroom TDD standards yielded fundamental Windows systems engineering takeaways:
+
+- **Win32 Folder Attribute Shell Gate:** Windows Explorer ignores `desktop.ini` unless the directory is flagged with `FILE_ATTRIBUTE_READONLY` or `FILE_ATTRIBUTE_SYSTEM`. On folders, this attribute does not lock write permissions and acts solely as an internal shell signal to parse customizations.
+- **Non-Destructive Shell Refresh:** Terminating `explorer.exe` disrupts taskbar state and running tray apps. Instant live updates are achieved via dual Win32 notifications: `SHCNE_UPDATEITEM` for path-specific updates paired with `SHCNE_ASSOCCHANGED` to invalidate the in-memory shell icon cache.
+- **GDI+ Silent PNG Truncation Guard:** Standard .NET image decoders silently process truncated PNG streams lacking valid `IEND` footer chunks. A custom chunk-level PNG integrity parser was built to prevent generating malformed `.ico` binaries.
+- **Cleanroom TDD Architectural Decoupling:** `WindowsIconsAdmin.Core` was engineered with zero dependencies on UI or platform APIs, enforcing frozen interface contracts and 160 air-gapped unit tests covering ReDoS timeouts, thread-safe undo transactions, and multi-resolution binary encoding.
+- **Dual Storage Modality:** Architecture supports both Centralized icon storage in `%LOCALAPPDATA%` (clean folders without loose assets) and Portable mode directly inside customized directories (preserving icons across network shares and removable drives).
 
 ---
 

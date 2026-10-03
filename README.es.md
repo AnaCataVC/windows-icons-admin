@@ -107,7 +107,7 @@ Clone el repositorio y ejecute la suite de pruebas:
 
 ```powershell
 # Clonar repositorio
-git clone https://github.com/your-username/windows-icons-admin.git
+git clone https://github.com/AnaCataVC/windows-icons-admin.git
 cd windows-icons-admin
 
 # Restaurar y compilar solución
@@ -116,6 +116,18 @@ dotnet build
 # Ejecutar suite de pruebas Cleanroom
 dotnet test
 ```
+
+---
+
+## Aprendizajes Clave
+
+El diseño e implementación de WindowsIconsAdmin bajo rigurosos estándares de Cleanroom TDD consolidó lecciones fundamentales de ingeniería de sistemas Windows:
+
+- **Señal de Atributo Win32 en Carpetas:** Windows Explorer ignora por completo `desktop.ini` a menos que el directorio tenga el atributo `FILE_ATTRIBUTE_READONLY` o `FILE_ATTRIBUTE_SYSTEM`. En directorios, este flag no bloquea la escritura; actúa exclusivamente como señal interna del Shell para evaluar personalizaciones.
+- **Refresco No Destructivo del Shell:** Matar `explorer.exe` rompe la barra de tareas y aplicaciones en segundo plano. La actualización en vivo se logra mediante notificaciones Win32 duales: `SHCNE_UPDATEITEM` para rutas específicas combinado con `SHCNE_ASSOCCHANGED` para invalidar la caché de iconos en memoria.
+- **Protección ante Truncamiento Silencioso en GDI+:** Los decodificadores estándar de .NET procesan streams PNG truncados sin footer `IEND`. Se desarrolló un analizador de integridad a nivel de chunks para evitar la generación de binarios `.ico` corruptos.
+- **Desacoplamiento Arquitectónico Cleanroom:** `WindowsIconsAdmin.Core` se diseñó con cero dependencias de UI o APIs de plataforma, imponiendo contratos congelados y 160 pruebas unitarias aisladas que validan límites ReDoS, transacciones de deshacer hilo-seguras y codificación binaria multirresolución.
+- **Modalidad Dual de Almacenamiento:** Soporte tanto para almacenamiento centralizado en `%LOCALAPPDATA%` (carpetas limpias sin archivos sueltos) como modo portable dentro del directorio personalizado (conservando iconos en unidades extraíbles y redes compartidas).
 
 ---
 

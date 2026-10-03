@@ -171,3 +171,20 @@ To prevent remote code execution or NTLM hash leaking via UNC icon paths (`IconR
 - **Portable Relative Paths (`IconResource=.\icon.ico,0`):** Survives folder moves and renames across drives, but places a hidden `.ico` in the folder.
 - **Central Storage (`%LOCALAPPDATA%\WindowsIconsAdmin\Icons`):** Leaves the folder clean, but breaks if the folder is moved to another computer or opened on an external drive.
 - **Cloud Sync Engines (OneDrive, Google Drive, Dropbox):** Often strip hidden/system attributes during synchronization or refuse to sync `desktop.ini`, reverting icons on remote endpoints.
+
+---
+
+## 6. WinUI 3 Packaging, Trimming, and CsWinRT Projections
+
+### 6.1 The IL Trimming vs. CsWinRT Projection Trap
+In .NET desktop applications using the Windows App SDK (WinUI 3), enabling IL Trimming (`<PublishTrimmed>True</PublishTrimmed>`) in `Release` mode strips metadata and internal projection helper types utilized by CsWinRT's COM wrappers.
+- When collections such as `ObservableCollection<T>` or ViewModels cross the WinRT ABI boundary (for example, assigning `ListView.ItemsSource = _folders;`), CsWinRT dynamically resolves projection virtual function tables via `WinRT.TypeExtensions.GetAbiToProjectionVftblPtr(Type helperType)`.
+- With IL trimming active without explicit NativeAOT trim directives or source-generated projection roots, reflection fails and returns a null pointer, throwing an unhandled `System.NullReferenceException` which WinUI 3 bubbles up as a native `STATUS_STOWED_EXCEPTION` (`0xc000027b`) crash on startup.
+- **Rule:** For non-NativeAOT WinUI 3 desktop applications, `<PublishTrimmed>False</PublishTrimmed>` must be explicitly set across all configurations.
+
+### 6.2 Standalone Unpackaged Self-Contained Deployment
+To package a WinUI 3 application using traditional Win32 installers (such as Inno Setup) without requiring users to manually install MSIX packages or machine-wide .NET runtimes:
+- **`WindowsPackageType`:** Set to `None` to bypass MSIX package identity constraints.
+- **`WindowsAppSDKSelfContained`:** Set to `true` to embed the WinUI 3 / Windows App SDK runtime assets directly within the application directory.
+- **`SelfContained`:** Set to `true` to bundle the complete .NET Core CLR runtime (`coreclr.dll`), ensuring independent execution on bare Windows installations.
+
