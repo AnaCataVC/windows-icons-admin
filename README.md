@@ -141,7 +141,8 @@ Building and architecting WindowsIconsAdmin under Cleanroom TDD standards yielde
 windows-icons-admin/
 ├── docs/
 │   ├── adr/
-│   │   └── 0001-winui3-dotnet-architecture.md
+│   │   ├── 0001-winui3-dotnet-architecture.md
+│   │   └── 0002-system-folder-guard-and-ini-hardening.md
 │   ├── contracts/
 │   │   ├── core-services.contract.md
 │   │   └── safety-and-integrity.contract.md
@@ -149,7 +150,8 @@ windows-icons-admin/
 │   │   ├── folder-icon-tool-stack-alternatives.md
 │   │   └── windows-folder-icons-automation.md
 │   └── learning/
-│       └── windows-shell-and-icon-quirks.md
+│       ├── windows-shell-and-icon-quirks.md
+│       └── windows-shell-safety-and-integrity.md
 ├── src/
 │   └── WindowsIconsAdmin.Core/
 │       ├── History/       # Transactional undo and rolling snapshot store
