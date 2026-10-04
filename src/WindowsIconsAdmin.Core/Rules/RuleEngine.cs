@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace WindowsIconsAdmin.Core.Rules;
@@ -40,9 +41,14 @@ public static class RuleEngine
             FolderRule? matched = null;
             if (name.Length > 0)
             {
+                var normalizedPath = path.TrimEnd('\\', '/');
                 foreach (var candidate in ordered)
                 {
-                    if (candidate.IsMatch(name))
+                    var targetInput = candidate.Rule.MatchTarget == RuleMatchTarget.FullPath
+                        ? normalizedPath
+                        : name;
+
+                    if (candidate.IsMatch(targetInput))
                     {
                         matched = candidate.Rule;
                         break;
@@ -56,6 +62,43 @@ public static class RuleEngine
         return results;
     }
 
+    public static bool TryValidatePattern(
+        RuleCondition condition,
+        string? pattern,
+        bool caseSensitive,
+        out string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+        {
+            errorMessage = "El patrón no puede estar vacío.";
+            return false;
+        }
+
+        if (condition == RuleCondition.Regex)
+        {
+            var options = RegexOptions.CultureInvariant;
+            if (!caseSensitive)
+            {
+                options |= RegexOptions.IgnoreCase;
+            }
+
+            try
+            {
+                _ = new Regex(pattern, options, RegexTimeout);
+            }
+            catch (ArgumentException ex)
+            {
+                errorMessage = $"Expresión regular inválida: {ex.Message}";
+                return false;
+            }
+        }
+
+        errorMessage = null;
+        return true;
+    }
+
+    public static string ExtractFolderName(string path) => ExtractName(path);
+
     private static string ExtractName(string path)
     {
         var trimmed = path.TrimEnd('\\', '/');
@@ -66,36 +109,69 @@ public static class RuleEngine
 
     private static CompiledRule Compile(FolderRule rule)
     {
-        if (rule.Condition != RuleCondition.Regex)
-        {
-            return new CompiledRule(rule, null);
-        }
-
         var options = RegexOptions.CultureInvariant;
         if (!rule.CaseSensitive)
         {
             options |= RegexOptions.IgnoreCase;
         }
 
-        try
+        if (rule.Condition == RuleCondition.Regex)
         {
-            return new CompiledRule(rule, new Regex(rule.Pattern ?? string.Empty, options, RegexTimeout));
+            try
+            {
+                return new CompiledRule(rule, new Regex(rule.Pattern ?? string.Empty, options, RegexTimeout));
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidRuleException($"Rule '{rule.Name}' has an invalid regular expression.", ex);
+            }
         }
-        catch (ArgumentException ex)
+
+        if (rule.Condition == RuleCondition.Wildcard)
         {
-            throw new InvalidRuleException($"Rule '{rule.Name}' has an invalid regular expression.", ex);
+            if (string.IsNullOrEmpty(rule.Pattern))
+            {
+                return new CompiledRule(rule, null);
+            }
+
+            var wildcardRegex = ConvertWildcardToRegex(rule.Pattern);
+            return new CompiledRule(rule, new Regex(wildcardRegex, options, RegexTimeout));
         }
+
+        return new CompiledRule(rule, null);
+    }
+
+    private static string ConvertWildcardToRegex(string pattern)
+    {
+        var sb = new StringBuilder("^");
+        foreach (var ch in pattern)
+        {
+            switch (ch)
+            {
+                case '*':
+                    sb.Append(".*");
+                    break;
+                case '?':
+                    sb.Append('.');
+                    break;
+                default:
+                    sb.Append(Regex.Escape(ch.ToString()));
+                    break;
+            }
+        }
+        sb.Append('$');
+        return sb.ToString();
     }
 
     private sealed record CompiledRule(FolderRule Rule, Regex? Regex)
     {
-        public bool IsMatch(string name)
+        public bool IsMatch(string input)
         {
             if (Regex is not null)
             {
                 try
                 {
-                    return Regex.IsMatch(name);
+                    return Regex.IsMatch(input);
                 }
                 catch (RegexMatchTimeoutException)
                 {
@@ -112,9 +188,10 @@ public static class RuleEngine
             var comparison = Rule.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
             return Rule.Condition switch
             {
-                RuleCondition.Contains => name.Contains(pattern, comparison),
-                RuleCondition.StartsWith => name.StartsWith(pattern, comparison),
-                RuleCondition.EndsWith => name.EndsWith(pattern, comparison),
+                RuleCondition.Contains => input.Contains(pattern, comparison),
+                RuleCondition.StartsWith => input.StartsWith(pattern, comparison),
+                RuleCondition.EndsWith => input.EndsWith(pattern, comparison),
+                RuleCondition.Equals => input.Equals(pattern, comparison),
                 _ => false
             };
         }

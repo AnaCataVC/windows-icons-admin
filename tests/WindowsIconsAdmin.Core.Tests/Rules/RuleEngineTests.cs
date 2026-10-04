@@ -441,4 +441,41 @@ public class RuleEngineTests
         Assert.Equal("r", result[0].Rule?.Id);
         Assert.Null(result[1].Rule);
     }
+
+    [Fact]
+    public void R6_Equals_MatchesExactFolderNameOnly()
+    {
+        var rule = Rule("r", RuleCondition.Equals, "Proyecto");
+        Assert.Equal("r", MatchedId(@"C:\Work\proyecto", rule));
+        Assert.Null(MatchedId(@"C:\Work\proyecto-1", rule));
+    }
+
+    [Fact]
+    public void R6_Wildcard_SupportsAsteriskAndQuestionMark()
+    {
+        var rule = Rule("r", RuleCondition.Wildcard, "202?-proyecto*");
+        Assert.Equal("r", MatchedId(@"C:\Work\2026-proyecto-final", rule));
+        Assert.Null(MatchedId(@"C:\Work\20-proyecto", rule));
+    }
+
+    [Fact]
+    public void R6_FullPathTarget_MatchesParentDirectorySegments()
+    {
+        var rule = new FolderRule("r", "name-r", true, RuleCondition.Contains, "Clientes", false, "icon.ico", 1, RuleMatchTarget.FullPath);
+        Assert.Equal("r", MatchedId(@"C:\Trabajo\Clientes\2026", rule));
+        Assert.Null(MatchedId(@"C:\Trabajo\Interno\2026", rule));
+    }
+
+    [Fact]
+    public void TryValidatePattern_DetectsEmptyAndInvalidRegex()
+    {
+        Assert.False(RuleEngine.TryValidatePattern(RuleCondition.Contains, "  ", false, out var emptyErr));
+        Assert.NotNull(emptyErr);
+
+        Assert.False(RuleEngine.TryValidatePattern(RuleCondition.Regex, "[unclosed", false, out var regexErr));
+        Assert.NotNull(regexErr);
+
+        Assert.True(RuleEngine.TryValidatePattern(RuleCondition.Wildcard, "202*-*", false, out var validErr));
+        Assert.Null(validErr);
+    }
 }

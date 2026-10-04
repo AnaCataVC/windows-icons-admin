@@ -16,10 +16,13 @@ public class ShellIconService
     public const uint INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF;
 
     // Shell Change Notify Events
+    public const uint SHCNE_UPDATEDIR = 0x00001000;
     public const uint SHCNE_UPDATEITEM = 0x00002000;
     public const uint SHCNE_ASSOCCHANGED = 0x08000000;
     public const uint SHCNF_IDLIST = 0x0000;
     public const uint SHCNF_PATHW = 0x0005;
+    public const uint SHCNF_FLUSH = 0x1000;
+    public const uint SHCNF_FLUSHNOWAIT = 0x2000;
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetFileAttributesW(string lpFileName, uint dwFileAttributes);
@@ -192,12 +195,12 @@ public class ShellIconService
 
     public virtual void NotifyBatchCompleted()
     {
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, IntPtr.Zero, IntPtr.Zero);
     }
 
     public static void NotifyAssociationChanged()
     {
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, IntPtr.Zero, IntPtr.Zero);
     }
 
     public static void ValidateLocalIconPath(string path)
@@ -358,10 +361,21 @@ public class ShellIconService
         ValidateLocalIconPath(iconPath);
         var formatted = FormatIconResourcePath(iconPath);
 
-        // Per-user override
+        // Per-user overrides (Folder, Directory, and Explorer Shell Icons indices 3 & 4)
         using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Folder\DefaultIcon", writable: true))
         {
             key.SetValue("", formatted, RegistryValueKind.String);
+        }
+
+        using (var dirKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\DefaultIcon", writable: true))
+        {
+            dirKey.SetValue("", formatted, RegistryValueKind.String);
+        }
+
+        using (var hkcuShellIcons = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true))
+        {
+            hkcuShellIcons.SetValue("3", formatted, RegistryValueKind.String);
+            hkcuShellIcons.SetValue("4", formatted, RegistryValueKind.String);
         }
 
         if (machineWide)
@@ -379,6 +393,17 @@ public class ShellIconService
         using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder", writable: true))
         {
             key?.DeleteSubKeyTree("DefaultIcon", false);
+        }
+
+        using (var dirKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Directory", writable: true))
+        {
+            dirKey?.DeleteSubKeyTree("DefaultIcon", false);
+        }
+
+        using (var hkcuShellIcons = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true))
+        {
+            hkcuShellIcons?.DeleteValue("3", false);
+            hkcuShellIcons?.DeleteValue("4", false);
         }
 
         if (machineWide)
@@ -400,6 +425,12 @@ public class ShellIconService
             if (!string.IsNullOrEmpty(val)) return val;
         }
 
+        using (var hkcuShellIcons = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons"))
+        {
+            var val = hkcuShellIcons?.GetValue("3") as string;
+            if (!string.IsNullOrEmpty(val)) return val;
+        }
+
         using var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder\DefaultIcon");
         return key?.GetValue("") as string;
     }
@@ -413,6 +444,11 @@ public class ShellIconService
         using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Unknown\DefaultIcon", writable: true))
         {
             key.SetValue("", formatted, RegistryValueKind.String);
+        }
+
+        using (var hkcuShellIcons = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true))
+        {
+            hkcuShellIcons.SetValue("0", formatted, RegistryValueKind.String);
         }
 
         if (machineWide)
@@ -431,6 +467,11 @@ public class ShellIconService
             key?.DeleteSubKeyTree("DefaultIcon", false);
         }
 
+        using (var hkcuShellIcons = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true))
+        {
+            hkcuShellIcons?.DeleteValue("0", false);
+        }
+
         if (machineWide)
         {
             using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
@@ -446,6 +487,12 @@ public class ShellIconService
         {
             using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons");
             var val = hklmKey?.GetValue("0") as string;
+            if (!string.IsNullOrEmpty(val)) return val;
+        }
+
+        using (var hkcuShellIcons = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons"))
+        {
+            var val = hkcuShellIcons?.GetValue("0") as string;
             if (!string.IsNullOrEmpty(val)) return val;
         }
 
@@ -502,14 +549,30 @@ public class ShellIconService
 
     private static void NotifyFolderUpdated(string folderPath)
     {
+        var flags = SHCNF_PATHW | SHCNF_FLUSHNOWAIT;
         var ptr = Marshal.StringToHGlobalUni(folderPath);
         try
         {
-            SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, ptr, IntPtr.Zero);
+            SHChangeNotify(SHCNE_UPDATEITEM, flags, ptr, IntPtr.Zero);
+            SHChangeNotify(SHCNE_UPDATEDIR, flags, ptr, IntPtr.Zero);
         }
         finally
         {
             Marshal.FreeHGlobal(ptr);
+        }
+
+        var parentDir = Path.GetDirectoryName(folderPath.TrimEnd('\\', '/'));
+        if (!string.IsNullOrEmpty(parentDir))
+        {
+            var parentPtr = Marshal.StringToHGlobalUni(parentDir);
+            try
+            {
+                SHChangeNotify(SHCNE_UPDATEDIR, flags, parentPtr, IntPtr.Zero);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(parentPtr);
+            }
         }
     }
 }

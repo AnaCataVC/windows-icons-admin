@@ -40,8 +40,17 @@ public class IconStorageService
             var fileName = embeddedFileName ?? DefaultEmbeddedIconName;
             var targetPath = Path.Combine(folderPath, fileName);
 
+            // Clear Hidden/System/ReadOnly attributes if the embedded icon already exists so overwrite never fails
+            if (File.Exists(targetPath))
+            {
+                File.SetAttributes(targetPath, FileAttributes.Normal);
+            }
+
             // Write icon bytes to the target folder
             File.WriteAllBytes(targetPath, icoBytes);
+
+            // Mark embedded icon as hidden so it does not clutter the folder
+            File.SetAttributes(targetPath, FileAttributes.Hidden);
 
             // Use relative path for maximum portability across drives/USBs
             var resourceString = $".\\{fileName},0";

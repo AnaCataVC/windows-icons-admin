@@ -71,4 +71,22 @@ public class IconStorageServiceTests : IDisposable
         Assert.True(IconStorageService.IsRemoteOrNetworkPath(@"\\server\share\folder"));
         Assert.False(IconStorageService.IsRemoteOrNetworkPath(@"C:\Local\Folder"));
     }
+
+    [Fact]
+    public void PortableEmbedded_SecondApplicationOverwritesHiddenIconSuccessfully()
+    {
+        var targetFolder = Path.Combine(_tempDir, "ReApplyTarget");
+        Directory.CreateDirectory(targetFolder);
+
+        var firstBytes = new byte[] { 1, 2, 3, 4 };
+        var secondBytes = new byte[] { 9, 8, 7, 6, 5 };
+
+        _storageService.PrepareIconForFolder(targetFolder, firstBytes, IconStorageMode.PortableEmbedded);
+        var secondResult = _storageService.PrepareIconForFolder(targetFolder, secondBytes, IconStorageMode.PortableEmbedded);
+
+        var iconPath = Path.Combine(targetFolder, ".folder_icon.ico");
+        Assert.Equal(".\\.folder_icon.ico,0", secondResult.IconResourceString);
+        Assert.Equal(secondBytes, File.ReadAllBytes(iconPath));
+        Assert.True((File.GetAttributes(iconPath) & FileAttributes.Hidden) != 0);
+    }
 }
