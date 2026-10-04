@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using WindowsIconsAdmin.Core.History;
+using WindowsIconsAdmin.Core.Safety;
 
 namespace WindowsIconsAdmin.Core.Shell;
 
@@ -85,7 +86,7 @@ public class ShellIconService
         return snapshot;
     }
 
-    public virtual FolderSnapshot RestoreFolderDefault(string folderPath)
+    public virtual FolderSnapshot RestoreFolderDefault(string folderPath, bool isKnownFolder = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
 
@@ -94,6 +95,8 @@ public class ShellIconService
             throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
         }
 
+        var isKnown = isKnownFolder || SystemFolderGuard.IsKnownFolder(folderPath);
+
         var iniPath = Path.Combine(folderPath, "desktop.ini");
         var snapshot = CaptureSnapshot(folderPath, null);
 
@@ -101,7 +104,7 @@ public class ShellIconService
         {
             SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
             var content = ReadAllTextSafe(iniPath);
-            var remaining = IniHelper.RemoveShellClassInfo(content);
+            var remaining = IniHelper.RemoveShellClassInfo(content, preserveShellDirectives: isKnown);
 
             if (remaining is not null)
             {
@@ -122,11 +125,14 @@ public class ShellIconService
             File.Delete(embeddedIcon);
         }
 
-        // Remove ReadOnly / System attributes from folder
-        var folderAttrs = GetAttributes(folderPath);
-        var cleanedAttrs = folderAttrs & ~(FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
-        if (cleanedAttrs == 0) cleanedAttrs = FILE_ATTRIBUTE_NORMAL;
-        SetAttributes(folderPath, cleanedAttrs);
+        if (!isKnown)
+        {
+            // Remove ReadOnly / System attributes from regular folder
+            var folderAttrs = GetAttributes(folderPath);
+            var cleanedAttrs = folderAttrs & ~(FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
+            if (cleanedAttrs == 0) cleanedAttrs = FILE_ATTRIBUTE_NORMAL;
+            SetAttributes(folderPath, cleanedAttrs);
+        }
 
         NotifyFolderUpdated(folderPath);
         return snapshot;
@@ -143,15 +149,20 @@ public class ShellIconService
 
         var iniPath = Path.Combine(snapshot.FolderPath, "desktop.ini");
 
-        // Remove copied icon if present
-        if (!string.IsNullOrEmpty(snapshot.CopiedIconFileName))
+        // Remove copied icon if present and validated (SC-R1, SC-R2)
+        if (!string.IsNullOrWhiteSpace(snapshot.CopiedIconFileName))
         {
-            var copiedPath = Path.Combine(snapshot.FolderPath, snapshot.CopiedIconFileName);
-            if (File.Exists(copiedPath))
+            var fileValidation = SystemFolderGuard.ValidateEmbeddedFileName(snapshot.CopiedIconFileName);
+            if (fileValidation.IsValid)
             {
-                SetAttributes(copiedPath, FILE_ATTRIBUTE_NORMAL);
-                File.Delete(copiedPath);
+                var copiedPath = Path.Combine(snapshot.FolderPath, snapshot.CopiedIconFileName);
+                if (SystemFolderGuard.IsContainedWithin(snapshot.FolderPath, copiedPath) && File.Exists(copiedPath))
+                {
+                    SetAttributes(copiedPath, FILE_ATTRIBUTE_NORMAL);
+                    File.Delete(copiedPath);
+                }
             }
+            // If CopiedIconFileName violates safety, RevertFolder skips file deletion and does not throw (SC-R2)
         }
 
         if (snapshot.HadDesktopIni)

@@ -15,6 +15,20 @@ public static class IniHelper
     /// </summary>
     public static string SetIconResource(string? existingContent, string iconResource)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconResource);
+
+        // SC-I1: Newlines Forbidden
+        if (iconResource.Contains('\r') || iconResource.Contains('\n'))
+        {
+            throw new ArgumentException("Newlines are not permitted in iconResource.", nameof(iconResource));
+        }
+
+        // SC-I2: Square Brackets Forbidden
+        if (iconResource.Contains('[') || iconResource.Contains(']'))
+        {
+            throw new ArgumentException("Square brackets are not permitted in iconResource.", nameof(iconResource));
+        }
+
         var lines = (existingContent ?? string.Empty)
             .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
             .ToList();
@@ -90,9 +104,13 @@ public static class IniHelper
     }
 
     /// <summary>
-    /// Removes [.ShellClassInfo] and its properties. Returns null if no other sections or meaningful content remains.
+    /// Removes [.ShellClassInfo] and its properties. When preserveShellDirectives is true,
+    /// retains system directives like LocalizedResourceName and CLSID.
+    /// Returns null if no other sections or meaningful content remains.
     /// </summary>
-    public static string? RemoveShellClassInfo(string? existingContent)
+    public static string? RemoveShellClassInfo(
+        string? existingContent,
+        bool preserveShellDirectives = false)
     {
         if (string.IsNullOrWhiteSpace(existingContent)) return null;
 
@@ -119,10 +137,48 @@ public static class IniHelper
 
         if (sectionStart < 0)
         {
-            return existingContent;
+            var hasMeaningful = lines.Any(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith(';') && !l.TrimStart().StartsWith('#'));
+            return hasMeaningful ? existingContent : null;
         }
 
         var sectionEnd = nextSectionStart >= 0 ? nextSectionStart : lines.Count;
+
+        if (preserveShellDirectives)
+        {
+            var preservedSectionLines = new List<string>();
+            var hasRetainedDirectives = false;
+
+            for (var i = sectionStart + 1; i < sectionEnd; i++)
+            {
+                var trimmed = lines[i].Trim();
+                if (trimmed.StartsWith("IconResource=", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith("IconFile=", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith("IconIndex=", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Strip icon directives
+                    continue;
+                }
+
+                preservedSectionLines.Add(lines[i]);
+                if (!string.IsNullOrWhiteSpace(trimmed) && !trimmed.StartsWith(';') && !trimmed.StartsWith('#'))
+                {
+                    hasRetainedDirectives = true;
+                }
+            }
+
+            if (hasRetainedDirectives)
+            {
+                // Retain [.ShellClassInfo] and preserved lines (LocalizedResourceName, CLSID, comments, etc.)
+                var result = new List<string>();
+                for (var i = 0; i <= sectionStart; i++) result.Add(lines[i]);
+                result.AddRange(preservedSectionLines);
+                for (var i = sectionEnd; i < lines.Count; i++) result.Add(lines[i]);
+
+                return string.Join(Environment.NewLine, result).TrimEnd() + Environment.NewLine;
+            }
+            // Otherwise fall through to removing [.ShellClassInfo] completely (SC-K3)
+        }
+
         var remaining = new List<string>();
         for (var i = 0; i < sectionStart; i++) remaining.Add(lines[i]);
         for (var i = sectionEnd; i < lines.Count; i++) remaining.Add(lines[i]);

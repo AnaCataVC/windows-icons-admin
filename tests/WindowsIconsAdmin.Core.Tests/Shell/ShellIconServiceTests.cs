@@ -1,4 +1,5 @@
 using WindowsIconsAdmin.Core.Shell;
+using Xunit;
 
 namespace WindowsIconsAdmin.Core.Tests.Shell;
 
@@ -85,4 +86,104 @@ public class ShellIconServiceTests : IDisposable
         Assert.Contains("IconResource=C:\\initial.ico,0", content);
         Assert.DoesNotContain("C:\\second.ico,0", content);
     }
+
+    #region SC-R1 & SC-R2: Safe Rollback (RevertFolder)
+
+    [Fact]
+    public void RevertFolder_WhenCopiedIconFileNameIsValidAndContained_DeletesIconFile()
+    {
+        var folder = Path.Combine(_tempDir, "FolderR1");
+        Directory.CreateDirectory(folder);
+
+        var copiedIconName = ".folder_icon.ico";
+        var localIconPath = Path.Combine(folder, copiedIconName);
+        File.WriteAllText(localIconPath, "dummy-ico-content");
+
+        var snapshot = _shellService.ApplyFolderIcon(folder, $"{localIconPath},0") with
+        {
+            CopiedIconFileName = copiedIconName
+        };
+
+        Assert.True(File.Exists(localIconPath));
+
+        _shellService.RevertFolder(snapshot);
+
+        Assert.False(File.Exists(localIconPath), "Safe embedded icon file must be deleted upon rollback.");
+    }
+
+    [Fact]
+    public void RevertFolder_WhenCopiedIconFileNameContainsTraversal_DoesNotDeleteAndDoesNotThrow()
+    {
+        var folder = Path.Combine(_tempDir, "FolderR2");
+        Directory.CreateDirectory(folder);
+
+        var canaryOutside = Path.Combine(_tempDir, "canary_dont_delete.txt");
+        File.WriteAllText(canaryOutside, "DO_NOT_DELETE");
+
+        var snapshot = _shellService.ApplyFolderIcon(folder, "C:\\test.ico,0") with
+        {
+            CopiedIconFileName = "../canary_dont_delete.txt"
+        };
+
+        var exception = Record.Exception(() => _shellService.RevertFolder(snapshot));
+
+        Assert.Null(exception); // Must not throw or crash batch undo
+        Assert.True(File.Exists(canaryOutside), "Outside file must NOT be deleted when traversal is attempted.");
+    }
+
+    [Fact]
+    public void RevertFolder_WhenCopiedIconFileNameHasRestrictedExtension_DoesNotDeleteAndDoesNotThrow()
+    {
+        var folder = Path.Combine(_tempDir, "FolderR2Ext");
+        Directory.CreateDirectory(folder);
+
+        var scriptFile = Path.Combine(folder, "safe_script.bat");
+        File.WriteAllText(scriptFile, "@echo off");
+
+        var snapshot = _shellService.ApplyFolderIcon(folder, "C:\\test.ico,0") with
+        {
+            CopiedIconFileName = "safe_script.bat"
+        };
+
+        var exception = Record.Exception(() => _shellService.RevertFolder(snapshot));
+
+        Assert.Null(exception);
+        Assert.True(File.Exists(scriptFile), "File with restricted extension must NOT be deleted by RevertFolder.");
+    }
+
+    #endregion
+
+    #region KnownFolder Safe Restoration Contract (RestoreFolderDefault)
+
+    [Fact]
+    public void RestoreFolderDefault_WhenKnownFolder_PreservesSystemDirectivesAndAttributes()
+    {
+        var folder = Path.Combine(_tempDir, "KnownFolderTest");
+        Directory.CreateDirectory(folder);
+
+        var iniPath = Path.Combine(folder, "desktop.ini");
+        var initialContent = "[.ShellClassInfo]\r\n" +
+                             "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21770\r\n" +
+                             "IconResource=C:\\Custom\\icon.ico,0\r\n" +
+                             "CLSID={FDD39AD0-238F-46AF-ADB4-6C85480369C7}\r\n";
+        File.WriteAllText(iniPath, initialContent);
+        File.SetAttributes(iniPath, FileAttributes.Hidden | FileAttributes.System);
+        File.SetAttributes(folder, FileAttributes.ReadOnly);
+
+        _shellService.RestoreFolderDefault(folder, isKnownFolder: true);
+
+        Assert.True(File.Exists(iniPath), "desktop.ini must be preserved for KnownFolder with system directives.");
+        var restoredContent = File.ReadAllText(iniPath);
+        Assert.Contains("[.ShellClassInfo]", restoredContent);
+        Assert.Contains("LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21770", restoredContent);
+        Assert.Contains("CLSID={FDD39AD0-238F-46AF-ADB4-6C85480369C7}", restoredContent);
+        Assert.DoesNotContain("IconResource", restoredContent);
+
+        var folderAttrs = File.GetAttributes(folder);
+        Assert.True(
+            (folderAttrs & FileAttributes.ReadOnly) != 0 || (folderAttrs & FileAttributes.System) != 0,
+            "Folder ReadOnly or System attribute must be preserved on KnownFolders.");
+    }
+
+    #endregion
 }

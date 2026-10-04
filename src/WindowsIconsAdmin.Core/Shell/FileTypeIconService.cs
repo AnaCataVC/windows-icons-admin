@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using WindowsIconsAdmin.Core.Safety;
 
 namespace WindowsIconsAdmin.Core.Shell;
 
@@ -9,6 +10,7 @@ public class FileTypeIconService
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
         ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
 
+        SystemFolderGuard.EnsureSafeExtension(extension);
         extension = NormalizeExtension(extension);
         ShellIconService.ValidateLocalIconPath(iconPath);
         var formatted = ShellIconService.FormatIconResourcePath(iconPath);
@@ -42,6 +44,7 @@ public class FileTypeIconService
     public static void RestoreExtensionIcon(string extension)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
+        SystemFolderGuard.EnsureSafeExtension(extension);
         extension = NormalizeExtension(extension);
 
         // Remove from SystemFileAssociations
