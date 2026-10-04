@@ -79,7 +79,7 @@ public sealed partial class SystemIconsDialog : ContentDialog
         if (file.FileType.Equals(".png", StringComparison.OrdinalIgnoreCase))
         {
             var pngBytes = await File.ReadAllBytesAsync(file.Path);
-            icoBytes = IcoEncoder.FromPng(pngBytes);
+            icoBytes = await Task.Run(() => IcoEncoder.FromPng(pngBytes));
         }
         else
         {

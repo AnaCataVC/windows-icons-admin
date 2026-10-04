@@ -90,7 +90,7 @@
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{x:Bind FolderName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{x:Bind FullPath}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{x:Bind WarningText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="#D97706" Visibility="{x:Bind HasGitWarning, Mode=OneWay}" />
+                                        <TextBlock Text="{x:Bind WarningText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="#D97706" Visibility="{x:Bind WarningVisibility, Mode=OneWay}" />
                                     </StackPanel>
 
                                     <TextBlock Grid.Column="3" Text="{x:Bind Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" FontWeight="Medium" />

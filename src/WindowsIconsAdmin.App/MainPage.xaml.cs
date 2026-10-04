@@ -9,6 +9,7 @@ using WindowsIconsAdmin.Core.Imaging;
 using WindowsIconsAdmin.Core.Rules;
 using WindowsIconsAdmin.Core.Shell;
 using WindowsIconsAdmin.Core.Storage;
+using WindowsIconsAdmin.Core.Safety;
 using WindowsIconsAdmin_App.Dialogs;
 using WindowsIconsAdmin_App.ViewModels;
 
@@ -101,6 +102,13 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        var validation = SystemFolderGuard.ValidateTargetFolder(path);
+        if (!validation.IsValid)
+        {
+            ShowInfo($"Carpeta protegida o no permitida: {validation.Reason}", InfoBarSeverity.Warning);
+            return;
+        }
+
         _folders.Add(new FolderItemViewModel(path));
     }
 
@@ -140,7 +148,7 @@ public sealed partial class MainPage : Page
             var rawBytes = await File.ReadAllBytesAsync(file.Path);
             if (file.FileType.Equals(".png", StringComparison.OrdinalIgnoreCase))
             {
-                _selectedIconBytes = IcoEncoder.FromPng(rawBytes);
+                _selectedIconBytes = await Task.Run(() => IcoEncoder.FromPng(rawBytes));
                 IconInfoLabel.Text = $"{file.Name}\n(PNG convertido automáticamente a .ICO)";
             }
             else

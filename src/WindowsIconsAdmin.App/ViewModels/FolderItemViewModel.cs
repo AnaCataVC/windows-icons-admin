@@ -35,13 +35,27 @@ public class FolderItemViewModel : INotifyPropertyChanged
     public bool HasGitWarning
     {
         get => _hasGitWarning;
-        set => SetField(ref _hasGitWarning, value);
+        set
+        {
+            if (SetField(ref _hasGitWarning, value))
+            {
+                OnPropertyChanged(nameof(WarningText));
+                OnPropertyChanged(nameof(WarningVisibility));
+            }
+        }
     }
 
     public bool IsRemoteWarning
     {
         get => _isRemoteWarning;
-        set => SetField(ref _isRemoteWarning, value);
+        set
+        {
+            if (SetField(ref _isRemoteWarning, value))
+            {
+                OnPropertyChanged(nameof(WarningText));
+                OnPropertyChanged(nameof(WarningVisibility));
+            }
+        }
     }
 
     public bool IsSelected
@@ -60,6 +74,9 @@ public class FolderItemViewModel : INotifyPropertyChanged
             return string.Empty;
         }
     }
+
+    public Microsoft.UI.Xaml.Visibility WarningVisibility =>
+        (HasGitWarning || IsRemoteWarning) ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
