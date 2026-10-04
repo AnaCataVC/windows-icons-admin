@@ -29,6 +29,9 @@ public class ShellIconService
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
 
+    [DllImport("shell32.dll", EntryPoint = "SHUpdateRecycleBinIcon")]
+    public static extern void SHUpdateRecycleBinIcon();
+
     // CLSIDs for System Icons
     private static readonly Dictionary<SystemIconKind, (string Clsid, string ValueName)> SystemIconClsids = new()
     {
@@ -181,9 +184,56 @@ public class ShellIconService
         SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
     }
 
+    public static void NotifyAssociationChanged()
+    {
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    public static void ValidateLocalIconPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var cleanPath = path.Contains(',') ? path.Split(',')[0].Trim('"') : path.Trim('"');
+
+        if (cleanPath.StartsWith(@"\\") || cleanPath.StartsWith("//"))
+        {
+            throw new ArgumentException("Remote UNC network paths are not permitted for security reasons.", nameof(path));
+        }
+
+        if (!Path.IsPathRooted(cleanPath))
+        {
+            throw new ArgumentException("Icon path must be a fully rooted local file path.", nameof(path));
+        }
+
+        var ext = Path.GetExtension(cleanPath);
+        if (!ext.Equals(".ico", StringComparison.OrdinalIgnoreCase) &&
+            !ext.Equals(".png", StringComparison.OrdinalIgnoreCase) &&
+            !ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) &&
+            !ext.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"Unsupported icon extension: '{ext}'. Allowed: .ico, .png, .dll, .exe", nameof(path));
+        }
+    }
+
+    public static string FormatIconResourcePath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        path = path.Trim().Trim('"');
+
+        if (path.Contains(','))
+        {
+            return path;
+        }
+
+        return $"{path},0";
+    }
+
     public virtual void SetSystemIcon(SystemIconKind kind, string iconPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
+        ValidateLocalIconPath(iconPath);
+        var formattedPath = FormatIconResourcePath(iconPath);
+
         if (!SystemIconClsids.TryGetValue(kind, out var info))
         {
             throw new NotSupportedException($"Unsupported system icon kind: {kind}");
@@ -191,12 +241,34 @@ public class ShellIconService
 
         var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
         using var key = Registry.CurrentUser.CreateSubKey(keyPath, writable: true);
-        key.SetValue(info.ValueName, iconPath, RegistryValueKind.String);
+        key.SetValue(info.ValueName, formattedPath, RegistryValueKind.String);
 
-        // For Recycle Bin, also set default if setting empty/full
         if (kind == SystemIconKind.RecycleBinEmpty)
         {
-            key.SetValue("", iconPath, RegistryValueKind.String);
+            key.SetValue("", formattedPath, RegistryValueKind.String);
+        }
+
+        // Mirror to Themes\DefaultIcon for Windows 10 / 11 themes persistence
+        using (var themeKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon", writable: true))
+        {
+            if (kind == SystemIconKind.RecycleBinEmpty)
+            {
+                themeKey.SetValue(info.Clsid, formattedPath, RegistryValueKind.String);
+                themeKey.SetValue("empty", formattedPath, RegistryValueKind.String);
+            }
+            else if (kind == SystemIconKind.RecycleBinFull)
+            {
+                themeKey.SetValue("full", formattedPath, RegistryValueKind.String);
+            }
+            else
+            {
+                themeKey.SetValue(info.Clsid, formattedPath, RegistryValueKind.String);
+            }
+        }
+
+        if (kind == SystemIconKind.RecycleBinEmpty || kind == SystemIconKind.RecycleBinFull)
+        {
+            SHUpdateRecycleBinIcon();
         }
 
         NotifyBatchCompleted();
@@ -210,21 +282,49 @@ public class ShellIconService
         }
 
         var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
-        using var key = Registry.CurrentUser.OpenSubKey(keyPath, writable: true);
-        if (key != null)
+        using (var key = Registry.CurrentUser.OpenSubKey(keyPath, writable: true))
         {
-            if (string.IsNullOrEmpty(info.ValueName))
+            if (key != null)
             {
-                key.DeleteValue("", false);
-            }
-            else
-            {
-                key.DeleteValue(info.ValueName, false);
-                if (kind == SystemIconKind.RecycleBinEmpty)
+                if (string.IsNullOrEmpty(info.ValueName))
                 {
                     key.DeleteValue("", false);
                 }
+                else
+                {
+                    key.DeleteValue(info.ValueName, false);
+                    if (kind == SystemIconKind.RecycleBinEmpty)
+                    {
+                        key.DeleteValue("", false);
+                    }
+                }
             }
+        }
+
+        // Clean Themes\DefaultIcon mirrors
+        using (var themeKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon", writable: true))
+        {
+            if (themeKey != null)
+            {
+                if (kind == SystemIconKind.RecycleBinEmpty)
+                {
+                    themeKey.DeleteValue(info.Clsid, false);
+                    themeKey.DeleteValue("empty", false);
+                }
+                else if (kind == SystemIconKind.RecycleBinFull)
+                {
+                    themeKey.DeleteValue("full", false);
+                }
+                else
+                {
+                    themeKey.DeleteValue(info.Clsid, false);
+                }
+            }
+        }
+
+        if (kind == SystemIconKind.RecycleBinEmpty || kind == SystemIconKind.RecycleBinFull)
+        {
+            SHUpdateRecycleBinIcon();
         }
 
         NotifyBatchCompleted();
@@ -239,6 +339,118 @@ public class ShellIconService
         if (key == null) return null;
 
         return key.GetValue(info.ValueName) as string;
+    }
+
+    public virtual void SetDefaultFolderIcon(string iconPath, bool machineWide = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
+        ValidateLocalIconPath(iconPath);
+        var formatted = FormatIconResourcePath(iconPath);
+
+        // Per-user override
+        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Folder\DefaultIcon", writable: true))
+        {
+            key.SetValue("", formatted, RegistryValueKind.String);
+        }
+
+        if (machineWide)
+        {
+            using var hklmKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
+            hklmKey.SetValue("3", formatted, RegistryValueKind.String);
+            hklmKey.SetValue("4", formatted, RegistryValueKind.String);
+        }
+
+        NotifyBatchCompleted();
+    }
+
+    public virtual void RestoreDefaultFolderIcon(bool machineWide = false)
+    {
+        using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder", writable: true))
+        {
+            key?.DeleteSubKeyTree("DefaultIcon", false);
+        }
+
+        if (machineWide)
+        {
+            using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
+            hklmKey?.DeleteValue("3", false);
+            hklmKey?.DeleteValue("4", false);
+        }
+
+        NotifyBatchCompleted();
+    }
+
+    public virtual string? GetCurrentDefaultFolderIcon(bool machineWide = false)
+    {
+        if (machineWide)
+        {
+            using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons");
+            var val = hklmKey?.GetValue("3") as string;
+            if (!string.IsNullOrEmpty(val)) return val;
+        }
+
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder\DefaultIcon");
+        return key?.GetValue("") as string;
+    }
+
+    public virtual void SetDefaultFileIcon(string iconPath, bool machineWide = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
+        ValidateLocalIconPath(iconPath);
+        var formatted = FormatIconResourcePath(iconPath);
+
+        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Unknown\DefaultIcon", writable: true))
+        {
+            key.SetValue("", formatted, RegistryValueKind.String);
+        }
+
+        if (machineWide)
+        {
+            using var hklmKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
+            hklmKey.SetValue("0", formatted, RegistryValueKind.String);
+        }
+
+        NotifyBatchCompleted();
+    }
+
+    public virtual void RestoreDefaultFileIcon(bool machineWide = false)
+    {
+        using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Unknown", writable: true))
+        {
+            key?.DeleteSubKeyTree("DefaultIcon", false);
+        }
+
+        if (machineWide)
+        {
+            using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
+            hklmKey?.DeleteValue("0", false);
+        }
+
+        NotifyBatchCompleted();
+    }
+
+    public virtual string? GetCurrentDefaultFileIcon(bool machineWide = false)
+    {
+        if (machineWide)
+        {
+            using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons");
+            var val = hklmKey?.GetValue("0") as string;
+            if (!string.IsNullOrEmpty(val)) return val;
+        }
+
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Unknown\DefaultIcon");
+        return key?.GetValue("") as string;
+    }
+
+    public virtual void RestoreAllSystemAndDefaultIcons()
+    {
+        foreach (var kind in Enum.GetValues<SystemIconKind>())
+        {
+            RestoreSystemIcon(kind);
+        }
+        RestoreDefaultFolderIcon(machineWide: false);
+        RestoreDefaultFileIcon(machineWide: false);
+        NotifyBatchCompleted();
     }
 
     private static FolderSnapshot CaptureSnapshot(string folderPath, string? copiedFileName)

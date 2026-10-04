@@ -9,7 +9,7 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C# 13](https://img.shields.io/badge/C%23-13.0-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Tests Passing](https://img.shields.io/badge/Tests-172%20superadas-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
+[![Tests Passing](https://img.shields.io/badge/Tests-188%20superadas-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
 [![Architecture](https://img.shields.io/badge/Arquitectura-Cleanroom%20TDD-orange)](docs/adr/0001-winui3-dotnet-architecture.md)
 [![License](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
 
@@ -70,11 +70,11 @@ WindowsIconsAdmin.Core se construyó aplicando principios rigurosos de **Ingenie
 
 1. **Contrato de Interfaz Congelado**: Las firmas de API, condiciones de borde y criterios de aceptación se definieron de forma previa en [core-services.contract.md](docs/contracts/core-services.contract.md) antes de implementar código.
 2. **Implementación y Pruebas Aisladas**: Las suites de pruebas unitarias se escribieron contra el contrato sin depender de los detalles internos de implementación.
-3. **Verificación Exhaustiva**: 160 pruebas unitarias verifican límites de error, seguridad entre subprocesos, tiempos límite ante retroceso catastrófico en expresiones regulares y formato binario ICO.
+3. **Verificación Exhaustiva**: 188 pruebas unitarias verifican límites de error, seguridad entre subprocesos, tiempos límite ante retroceso catastrófico en expresiones regulares, formato binario ICO y asociaciones del registro de Windows.
 
 ```
-Pruebas totales: 160
-Superadas:       160 (100%)
+Pruebas totales: 188
+Superadas:       188 (100%)
 Fallidas:          0
 Omitidas:          0
 Duración:        ~2.0s

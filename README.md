@@ -9,7 +9,7 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C# 13](https://img.shields.io/badge/C%23-13.0-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Tests Passing](https://img.shields.io/badge/Tests-172%20passing-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
+[![Tests Passing](https://img.shields.io/badge/Tests-188%20passing-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
 [![Architecture](https://img.shields.io/badge/Architecture-Cleanroom%20TDD-orange)](docs/adr/0001-winui3-dotnet-architecture.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -70,11 +70,11 @@ WindowsIconsAdmin.Core was engineered using a rigorous **Cleanroom Software Engi
 
 1. **Frozen Interface Contract**: Complete API specifications, boundary conditions, and acceptance criteria were formalized in [core-services.contract.md](docs/contracts/core-services.contract.md) before writing code.
 2. **Air-Gapped Test & Implementation**: Unit test suites were developed against the specification independently from the core implementation.
-3. **Comprehensive Verification**: 160 unit tests validate error boundaries, thread safety, regex catastrophic timeouts, and binary ICO structures.
+3. **Comprehensive Verification**: 188 unit tests validate error boundaries, thread safety, regex catastrophic timeouts, binary ICO structures, and system/registry shell associations.
 
 ```
-Total Tests:     160
-Passed:          160 (100%)
+Total Tests:     188
+Passed:          188 (100%)
 Failed:            0
 Skipped:           0
 Duration:        ~2.0s
