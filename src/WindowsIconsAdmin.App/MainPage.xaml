@@ -18,7 +18,8 @@
 
         <!-- Barra de herramientas superior -->
         <CommandBar Grid.Row="0" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" BorderThickness="0">
-            <AppBarButton Icon="Folder" Label="Agregar carpetas" Click="OnAddFoldersClick" />
+            <AppBarButton Icon="Folder" Label="Agregar carpetas" Click="OnAddFoldersClick" ToolTipService.ToolTip="Selecciona una o varias carpetas a la vez (Ctrl o Shift + clic)" />
+            <AppBarButton Icon="NewFolder" Label="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" ToolTipService.ToolTip="Elige una carpeta raíz y agrega todas sus subcarpetas directas" />
             <AppBarButton Icon="Pictures" Label="Seleccionar icono" Click="OnSelectIconClick" />
             <AppBarSeparator />
             <AppBarButton Icon="Accept" Label="Aplicar icono" Click="OnApplyIconClick" />
@@ -53,27 +54,41 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0">
+                    <Grid Grid.Row="0" ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Carpetas seleccionadas" FontWeight="SemiBold" Style="{StaticResource SubtitleTextBlockStyle}" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Content="Seleccionar todas" Click="OnSelectAllClick" />
-                            <Button Content="Deseleccionar todas" Click="OnDeselectAllClick" />
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock x:Name="FoldersHeaderTitle"
+                                       Text="Carpetas seleccionadas"
+                                       FontWeight="SemiBold"
+                                       Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock x:Name="FoldersSelectionSubtitle"
+                                       Text="Puedes elegir varias carpetas con Ctrl/Shift o arrastrarlas desde el Explorador"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button Content="Marcar todas" Click="OnSelectAllClick" />
+                            <Button Content="Desmarcar todas" Click="OnDeselectAllClick" />
+                            <Button Content="Solo resaltadas" Click="OnCheckHighlightedOnlyClick" ToolTipService.ToolTip="Marca únicamente las filas seleccionadas con Ctrl o Shift en la lista" />
                         </StackPanel>
                     </Grid>
 
                     <!-- Mensaje si lista vacía -->
                     <StackPanel x:Name="EmptyListPlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                         <FontIcon Glyph="&#xED25;" FontSize="48" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                        <TextBlock Text="Arrastra carpetas aquí desde el Explorador" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                        <TextBlock Text="o presiona 'Agregar carpetas' en la barra superior." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Arrastra una o varias carpetas aquí desde el Explorador" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="o usa 'Agregar carpetas' (soporta selección múltiple con Ctrl/Shift) y 'Agregar subcarpetas de...'." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                            <Button Content="Agregar carpetas..." Click="OnAddFoldersClick" Style="{StaticResource AccentButtonStyle}" />
+                            <Button Content="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Lista de carpetas -->
-                    <ListView x:Name="FoldersListView" Grid.Row="1" SelectionMode="None">
+                    <ListView x:Name="FoldersListView" Grid.Row="1" SelectionMode="Extended">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:FolderItemViewModel">
                                 <Grid ColumnSpacing="12" Padding="8,6" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
@@ -81,6 +96,7 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
@@ -94,6 +110,14 @@
                                     </StackPanel>
 
                                     <TextBlock Grid.Column="3" Text="{x:Bind Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" FontWeight="Medium" />
+
+                                    <Button Grid.Column="4"
+                                            Content="✕"
+                                            Padding="8,4"
+                                            VerticalAlignment="Center"
+                                            Click="OnRemoveSingleFolderClick"
+                                            Tag="{x:Bind}"
+                                            ToolTipService.ToolTip="Quitar esta carpeta de la lista" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -146,7 +170,7 @@
                 </ScrollViewer>
 
                 <!-- Botón principal de aplicación (siempre visible) -->
-                <Button Grid.Row="1" Content="Aplicar icono a seleccionadas" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40" Click="OnApplyIconClick" />
+                <Button x:Name="ApplyIconPrimaryButton" Grid.Row="1" Content="Aplicar icono a seleccionadas" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40" Click="OnApplyIconClick" />
             </Grid>
         </Grid>
 

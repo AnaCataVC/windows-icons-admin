@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Microsoft.UI.Xaml;
@@ -11,6 +12,7 @@ using WindowsIconsAdmin.Core.Shell;
 using WindowsIconsAdmin.Core.Storage;
 using WindowsIconsAdmin.Core.Safety;
 using WindowsIconsAdmin_App.Dialogs;
+using WindowsIconsAdmin_App.Services;
 using WindowsIconsAdmin_App.ViewModels;
 
 namespace WindowsIconsAdmin_App;
@@ -21,6 +23,7 @@ public sealed partial class MainPage : Page
     private readonly ShellIconService _shellService = new();
     private readonly IconStorageService _storageService = new();
     private readonly UndoStore _undoStore;
+    private readonly RuleStore _ruleStore;
     private readonly List<FolderRule> _rules = new();
 
     private byte[]? _selectedIconBytes;
@@ -32,17 +35,39 @@ public sealed partial class MainPage : Page
         InitializeComponent();
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var historyFile = Path.Combine(localAppData, "WindowsIconsAdmin", "history.json");
+        var appDataDir = Path.Combine(localAppData, "WindowsIconsAdmin");
+        var historyFile = Path.Combine(appDataDir, "history.json");
+        var rulesFile = Path.Combine(appDataDir, "rules.json");
+
         _undoStore = new UndoStore(historyFile);
+        _ruleStore = new RuleStore(rulesFile);
+        _rules.AddRange(_ruleStore.GetAll());
 
         FoldersListView.ItemsSource = _folders;
-        _folders.CollectionChanged += (s, e) => UpdateEmptyState();
-        UpdateEmptyState();
+        _folders.CollectionChanged += (_, _) => UpdateEmptyAndSelectionState();
+        UpdateEmptyAndSelectionState();
     }
 
-    private void UpdateEmptyState()
+    private void UpdateEmptyAndSelectionState()
     {
-        EmptyListPlaceholder.Visibility = _folders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var total = _folders.Count;
+        var checkedCount = _folders.Count(f => f.IsSelected);
+
+        EmptyListPlaceholder.Visibility = total == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (FoldersHeaderTitle != null)
+        {
+            FoldersHeaderTitle.Text = total == 0
+                ? "Carpetas seleccionadas"
+                : $"Carpetas en la lista ({checkedCount} de {total} marcadas)";
+        }
+
+        if (ApplyIconPrimaryButton != null)
+        {
+            ApplyIconPrimaryButton.Content = checkedCount > 0
+                ? $"Aplicar icono a {checkedCount} {(checkedCount == 1 ? "carpeta" : "carpetas")}"
+                : "Aplicar icono a seleccionadas";
+        }
     }
 
     private IconStorageMode CurrentStorageMode =>
@@ -50,7 +75,7 @@ public sealed partial class MainPage : Page
             ? IconStorageMode.CentralCache
             : IconStorageMode.PortableEmbedded;
 
-    #region Drag and Drop & Add Folders
+    #region Drag and Drop & Multi-Folder Selection
 
     private void OnListDragOver(object sender, DragEventArgs e)
     {
@@ -67,63 +92,196 @@ public sealed partial class MainPage : Page
         if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
 
         var items = await e.DataView.GetStorageItemsAsync();
+        var added = 0;
         foreach (var item in items)
         {
             if (item is StorageFolder folder)
             {
-                AddFolderIfNotPresent(folder.Path);
+                if (AddFolderIfNotPresent(folder.Path)) added++;
             }
             else if (Directory.Exists(item.Path))
             {
-                AddFolderIfNotPresent(item.Path);
+                if (AddFolderIfNotPresent(item.Path)) added++;
             }
+        }
+
+        if (added > 0)
+        {
+            ShowInfo($"Se agregaron {added} {(added == 1 ? "carpeta" : "carpetas")} a la lista.", InfoBarSeverity.Informational);
         }
     }
 
     private async void OnAddFoldersClick(object sender, RoutedEventArgs e)
     {
-        var picker = new Windows.Storage.Pickers.FolderPicker();
         var hwnd = MainWindow.Current.Hwnd;
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-        picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-        picker.FileTypeFilter.Add("*");
+        var selectedPaths = await MultiFolderPickerService.PickMultipleFoldersAsync(hwnd);
+        if (selectedPaths.Count == 0) return;
 
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder != null)
+        var added = 0;
+        var skippedProtected = 0;
+        foreach (var path in selectedPaths)
         {
-            AddFolderIfNotPresent(folder.Path);
+            if (AddFolderIfNotPresent(path, out var wasProtected))
+            {
+                added++;
+            }
+            else if (wasProtected)
+            {
+                skippedProtected++;
+            }
+        }
+
+        if (added > 0 && skippedProtected == 0)
+        {
+            ShowInfo($"Se agregaron {added} {(added == 1 ? "carpeta" : "carpetas")} a la lista.", InfoBarSeverity.Informational);
+        }
+        else if (added > 0 && skippedProtected > 0)
+        {
+            ShowInfo($"Se agregaron {added} carpetas ({skippedProtected} omitidas por ser carpetas protegidas del sistema).", InfoBarSeverity.Warning);
         }
     }
 
-    private void AddFolderIfNotPresent(string path)
+    private async void OnAddSubfoldersClick(object sender, RoutedEventArgs e)
     {
+        var hwnd = MainWindow.Current.Hwnd;
+        var parentPath = await MultiFolderPickerService.PickSingleParentFolderAsync(hwnd);
+        if (string.IsNullOrWhiteSpace(parentPath) || !Directory.Exists(parentPath)) return;
+
+        string[] subdirs;
+        try
+        {
+            subdirs = Directory.GetDirectories(parentPath);
+        }
+        catch (Exception ex)
+        {
+            ShowInfo($"No se pudieron leer las subcarpetas de '{parentPath}': {ex.Message}", InfoBarSeverity.Error);
+            return;
+        }
+
+        if (subdirs.Length == 0)
+        {
+            ShowInfo($"La carpeta '{Path.GetFileName(parentPath)}' no contiene subcarpetas directas.", InfoBarSeverity.Warning);
+            return;
+        }
+
+        var added = 0;
+        foreach (var dir in subdirs)
+        {
+            // Skip hidden dot-folders like .git or .vs by default when bulk-loading subfolders
+            var name = Path.GetFileName(dir);
+            if (name.StartsWith('.')) continue;
+
+            try
+            {
+                var attrs = File.GetAttributes(dir);
+                if ((attrs & System.IO.FileAttributes.System) != 0 && (attrs & System.IO.FileAttributes.Hidden) != 0)
+                {
+                    continue;
+                }
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (AddFolderIfNotPresent(dir, out _, suppressWarningToast: true))
+            {
+                added++;
+            }
+        }
+
+        if (added > 0)
+        {
+            ShowInfo($"Se agregaron {added} subcarpetas desde '{Path.GetFileName(parentPath)}'.", InfoBarSeverity.Success);
+        }
+        else
+        {
+            ShowInfo("No se encontraron subcarpetas nuevas o válidas para agregar.", InfoBarSeverity.Informational);
+        }
+    }
+
+    private bool AddFolderIfNotPresent(string path) =>
+        AddFolderIfNotPresent(path, out _, suppressWarningToast: false);
+
+    private bool AddFolderIfNotPresent(string path, out bool wasProtected, bool suppressWarningToast = false)
+    {
+        wasProtected = false;
         if (_folders.Any(f => f.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase)))
         {
-            return;
+            return false;
         }
 
         var validation = SystemFolderGuard.ValidateTargetFolder(path);
         if (!validation.IsValid)
         {
-            ShowInfo($"Carpeta protegida o no permitida: {validation.Reason}", InfoBarSeverity.Warning);
-            return;
+            wasProtected = true;
+            if (!suppressWarningToast)
+            {
+                ShowInfo($"Carpeta protegida o no permitida: {validation.Reason}", InfoBarSeverity.Warning);
+            }
+            return false;
         }
 
-        _folders.Add(new FolderItemViewModel(path));
+        var vm = new FolderItemViewModel(path);
+        vm.PropertyChanged += OnFolderItemPropertyChanged;
+        _folders.Add(vm);
+        return true;
+    }
+
+    private void OnFolderItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FolderItemViewModel.IsSelected))
+        {
+            UpdateEmptyAndSelectionState();
+        }
     }
 
     private void OnSelectAllClick(object sender, RoutedEventArgs e)
     {
         foreach (var f in _folders) f.IsSelected = true;
+        UpdateEmptyAndSelectionState();
     }
 
     private void OnDeselectAllClick(object sender, RoutedEventArgs e)
     {
         foreach (var f in _folders) f.IsSelected = false;
+        UpdateEmptyAndSelectionState();
+    }
+
+    private void OnCheckHighlightedOnlyClick(object sender, RoutedEventArgs e)
+    {
+        var highlighted = FoldersListView.SelectedItems
+            .OfType<FolderItemViewModel>()
+            .ToHashSet();
+
+        if (highlighted.Count == 0)
+        {
+            ShowInfo("Selecciona primero varias filas con Ctrl + clic o Shift + clic en la lista.", InfoBarSeverity.Informational);
+            return;
+        }
+
+        foreach (var f in _folders)
+        {
+            f.IsSelected = highlighted.Contains(f);
+        }
+        UpdateEmptyAndSelectionState();
+    }
+
+    private void OnRemoveSingleFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: FolderItemViewModel item })
+        {
+            item.PropertyChanged -= OnFolderItemPropertyChanged;
+            _folders.Remove(item);
+        }
     }
 
     private void OnClearListClick(object sender, RoutedEventArgs e)
     {
+        foreach (var f in _folders)
+        {
+            f.PropertyChanged -= OnFolderItemPropertyChanged;
+        }
         _folders.Clear();
     }
 
@@ -183,7 +341,7 @@ public sealed partial class MainPage : Page
         var selectedFolders = _folders.Where(f => f.IsSelected).ToList();
         if (selectedFolders.Count == 0)
         {
-            ShowInfo("Selecciona al menos una carpeta de la lista.", InfoBarSeverity.Warning);
+            ShowInfo("Marca al menos una carpeta de la lista para aplicar el icono.", InfoBarSeverity.Warning);
             return;
         }
 
@@ -222,7 +380,7 @@ public sealed partial class MainPage : Page
 
                     App.AppDispatcherQueue?.TryEnqueue(() =>
                     {
-                        item.Status = "Aplicado";
+                        item.Status = "✓ Icono aplicado";
                         if (prep.WarnGitRepository) item.HasGitWarning = true;
                         if (prep.WarnRemotePath) item.IsRemoteWarning = true;
                     });
@@ -262,7 +420,7 @@ public sealed partial class MainPage : Page
         }
         else
         {
-            ShowInfo($"Icono aplicado con éxito a {successCount} carpetas.", InfoBarSeverity.Success);
+            ShowInfo($"Icono aplicado con éxito a {successCount} {(successCount == 1 ? "carpeta" : "carpetas")}.", InfoBarSeverity.Success);
         }
     }
 
@@ -271,7 +429,7 @@ public sealed partial class MainPage : Page
         var selectedFolders = _folders.Where(f => f.IsSelected).ToList();
         if (selectedFolders.Count == 0)
         {
-            ShowInfo("Selecciona al menos una carpeta de la lista.", InfoBarSeverity.Warning);
+            ShowInfo("Marca al menos una carpeta de la lista.", InfoBarSeverity.Warning);
             return;
         }
 
@@ -321,7 +479,7 @@ public sealed partial class MainPage : Page
         });
 
         SetProgress(false);
-        ShowInfo($"Se restauró el icono predeterminado de {count} carpetas.", InfoBarSeverity.Success);
+        ShowInfo($"Se restauró el icono predeterminado de {count} {(count == 1 ? "carpeta" : "carpetas")}.", InfoBarSeverity.Success);
     }
 
     private async void OnUndoLastBatchClick(object sender, RoutedEventArgs e)
@@ -398,51 +556,99 @@ public sealed partial class MainPage : Page
 
     private async void OnRulesClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new RulesDialog(_rules, ApplyRulesToFoldersAsync)
+        var allPaths = _folders.Select(f => f.FullPath).ToList();
+        var selectedPaths = _folders.Where(f => f.IsSelected).Select(f => f.FullPath).ToList();
+
+        var dialog = new RulesDialog(
+            _rules,
+            allPaths,
+            selectedPaths,
+            PersistUpdatedRules,
+            ApplyRulesToFoldersAsync)
         {
             XamlRoot = this.XamlRoot
         };
         await dialog.ShowAsync();
     }
 
-    private async Task ApplyRulesToFoldersAsync(List<FolderRule> rules)
+    private void PersistUpdatedRules(IReadOnlyList<FolderRule> updatedRules)
     {
-        if (_folders.Count == 0)
+        _rules.Clear();
+        _rules.AddRange(updatedRules);
+        _ruleStore.SaveAll(_rules);
+    }
+
+    private async Task ApplyRulesToFoldersAsync(IReadOnlyList<FolderRule> rules, bool selectedOnly)
+    {
+        PersistUpdatedRules(rules);
+
+        var targetItems = selectedOnly
+            ? _folders.Where(f => f.IsSelected).ToList()
+            : _folders.ToList();
+
+        if (targetItems.Count == 0)
         {
-            ShowInfo("Agrega carpetas a la lista antes de aplicar reglas.", InfoBarSeverity.Warning);
+            ShowInfo("Agrega o marca carpetas en la lista antes de aplicar las reglas.", InfoBarSeverity.Warning);
             return;
         }
 
-        var folderPaths = _folders.Select(f => f.FullPath).ToList();
-        var matches = RuleEngine.Evaluate(folderPaths, rules);
+        var folderPaths = targetItems.Select(f => f.FullPath).ToList();
+        IReadOnlyList<RuleMatch> matches;
+        try
+        {
+            matches = RuleEngine.Evaluate(folderPaths, rules);
+        }
+        catch (Exception ex)
+        {
+            ShowInfo($"Error al evaluar las reglas: {ex.Message}", InfoBarSeverity.Error);
+            return;
+        }
+
+        var matchedList = matches.Where(m => m.Rule != null).ToList();
+        if (matchedList.Count == 0)
+        {
+            ShowInfo($"Ninguna de las {targetItems.Count} carpetas evaluadas coincidió con las reglas activas.", InfoBarSeverity.Informational);
+            return;
+        }
 
         var mode = CurrentStorageMode;
         var appliedCount = 0;
+        var errorCount = 0;
 
-        SetProgress(true, 0, matches.Count, "Aplicando reglas...");
+        SetProgress(true, 0, matchedList.Count, "Aplicando reglas...");
 
         await Task.Run(() =>
         {
             var snapshots = new List<FolderSnapshot>();
+            var encodedIconCache = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
 
-            for (var i = 0; i < matches.Count; i++)
+            for (var i = 0; i < matchedList.Count; i++)
             {
-                var match = matches[i];
-                if (match.Rule == null || string.IsNullOrEmpty(match.Rule.IconPath) || !File.Exists(match.Rule.IconPath))
+                var match = matchedList[i];
+                var rule = match.Rule!;
+                var folderVm = targetItems.FirstOrDefault(f => f.FullPath.Equals(match.FolderPath, StringComparison.OrdinalIgnoreCase));
+
+                UpdateProgress(i + 1, matchedList.Count, $"Regla '{rule.Name}' → {Path.GetFileName(match.FolderPath)}");
+
+                if (string.IsNullOrWhiteSpace(rule.IconPath) || !File.Exists(rule.IconPath))
                 {
+                    errorCount++;
+                    App.AppDispatcherQueue?.TryEnqueue(() =>
+                    {
+                        if (folderVm != null) folderVm.Status = $"Error ({rule.Name}): icono no encontrado";
+                    });
                     continue;
                 }
 
                 try
                 {
-                    byte[] bytes;
-                    if (match.Rule.IconPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    if (!encodedIconCache.TryGetValue(rule.IconPath, out var bytes))
                     {
-                        bytes = IcoEncoder.FromPng(File.ReadAllBytes(match.Rule.IconPath));
-                    }
-                    else
-                    {
-                        bytes = File.ReadAllBytes(match.Rule.IconPath);
+                        var rawBytes = File.ReadAllBytes(rule.IconPath);
+                        bytes = rule.IconPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                            ? IcoEncoder.FromPng(rawBytes)
+                            : rawBytes;
+                        encodedIconCache[rule.IconPath] = bytes;
                     }
 
                     var prep = _storageService.PrepareIconForFolder(match.FolderPath, bytes, mode);
@@ -451,12 +657,23 @@ public sealed partial class MainPage : Page
 
                     App.AppDispatcherQueue?.TryEnqueue(() =>
                     {
-                        var item = _folders.FirstOrDefault(f => f.FullPath.Equals(match.FolderPath, StringComparison.OrdinalIgnoreCase));
-                        if (item != null) item.Status = $"Regla: {match.Rule.Name}";
+                        if (folderVm != null)
+                        {
+                            folderVm.Status = $"✓ Regla: {rule.Name}";
+                            if (prep.WarnGitRepository) folderVm.HasGitWarning = true;
+                            if (prep.WarnRemotePath) folderVm.IsRemoteWarning = true;
+                        }
                     });
                     appliedCount++;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    App.AppDispatcherQueue?.TryEnqueue(() =>
+                    {
+                        if (folderVm != null) folderVm.Status = $"Error ({rule.Name}): {ex.Message}";
+                    });
+                }
             }
 
             if (snapshots.Count > 0)
@@ -475,7 +692,14 @@ public sealed partial class MainPage : Page
         });
 
         SetProgress(false);
-        ShowInfo($"Reglas aplicadas con éxito a {appliedCount} carpetas coincidentes.", InfoBarSeverity.Success);
+        if (errorCount > 0)
+        {
+            ShowInfo($"Reglas aplicadas a {appliedCount} carpetas ({errorCount} con error).", InfoBarSeverity.Warning);
+        }
+        else
+        {
+            ShowInfo($"Reglas aplicadas con éxito a {appliedCount} de {targetItems.Count} carpetas.", InfoBarSeverity.Success);
+        }
     }
 
     private async void OnSystemIconsClick(object sender, RoutedEventArgs e)
