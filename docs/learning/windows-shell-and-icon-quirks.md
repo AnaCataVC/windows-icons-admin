@@ -188,3 +188,45 @@ To package a WinUI 3 application using traditional Win32 installers (such as Inn
 - **`WindowsAppSDKSelfContained`:** Set to `true` to embed the WinUI 3 / Windows App SDK runtime assets directly within the application directory.
 - **`SelfContained`:** Set to `true` to bundle the complete .NET Core CLR runtime (`coreclr.dll`), ensuring independent execution on bare Windows installations.
 
+---
+
+## 7. Multi-Folder Selection via Win32 COM `IFileOpenDialog`
+
+### 7.1 The WinRT `FolderPicker` Single-Selection Limitation
+In the Windows App SDK (WinUI 3), `Windows.Storage.Pickers.FolderPicker` only exposes `PickSingleFolderAsync()`. Unlike `FileOpenPicker` (which offers `PickMultipleFilesAsync()`), WinRT provides no managed multi-folder selection API, forcing users to open the dialog repeatedly when selecting multiple non-contiguous folders.
+
+### 7.2 Native `IFileOpenDialog` Interop with `FOS_PICKFOLDERS | FOS_ALLOWMULTISELECT`
+To provide native multi-folder selection in a single dialog session without external dependencies:
+- Instantiate the Win32 Common Item Dialog (`CLSID_FileOpenDialog`: `{DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7}`) cast to `IFileOpenDialog` (`{d57c7288-d4ad-4768-be02-9d969532d960}`).
+- Set the dialog option flags to `FOS_PICKFOLDERS (0x20) | FOS_FORCEFILESYSTEM (0x40) | FOS_ALLOWMULTISELECT (0x200) | FOS_PATHMUSTEXIST (0x800)`.
+- Pass the WinUI 3 window handle (`HWND`) to `IModalWindow::Show(hwnd)` and enumerate the resulting `IShellItemArray` using `SIGDN_FILESYSPATH` (`0x80058000`).
+- Maintain a graceful fallback to `Windows.Storage.Pickers.FolderPicker` if COM activation is unavailable in restricted environments.
+
+---
+
+## 8. Windows 11 Default Folder Icon Overrides (`HKCU` vs `Shell Icons`)
+
+### 8.1 Why `HKCU\Software\Classes\Folder\DefaultIcon` Alone Is Insufficient
+On Windows 11, writing only to `HKCU\Software\Classes\Folder\DefaultIcon` does not consistently update standard file system folders in Windows Explorer. Explorer resolves generic closed/open folder glyphs through `Shell Icons` table indices `3` (closed folder) and `4` (open folder) as well as the `Directory` class registration. Furthermore, writing to `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons` fails with `UnauthorizedAccessException` unless the process is running with elevated Administrator privileges.
+
+### 8.2 Zero-Elevation Multi-Key Synchronization
+To reliably customize (and restore) the global default folder icon for the current user without requiring UAC elevation, synchronize all three per-user registry locations simultaneously:
+1. `HKCU\Software\Classes\Folder\DefaultIcon` (default value)
+2. `HKCU\Software\Classes\Directory\DefaultIcon` (default value)
+3. `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons` (string values `"3"` and `"4"`)
+
+Additionally, when notifying Explorer of per-folder or batch icon updates, emit both `SHCNE_UPDATEITEM` (`0x00002000`) and `SHCNE_UPDATEDIR` (`0x00001000`) combined with `SHCNF_PATHW | SHCNF_FLUSHNOWAIT` (`0x2005`) on the target directory and its parent directory before firing `SHCNE_ASSOCCHANGED`.
+
+---
+
+## 9. Overwriting Hidden Embedded Icons (`PortableEmbedded` Mode)
+
+### 9.1 `UnauthorizedAccessException` on Re-Application
+In `PortableEmbedded` storage mode, the generated `.folder_icon.ico` file is written inside the target folder and flagged with `FileAttributes.Hidden` so it does not clutter the user's directory. However, on Windows NTFS, calling `File.WriteAllBytes` on an existing file that already possesses the `Hidden`, `System`, or `ReadOnly` attribute throws `UnauthorizedAccessException` (`WinError 5`).
+
+### 9.2 Pre-Write Attribute Normalization
+Before writing `.folder_icon.ico` in `IconStorageService.PrepareIconForFolder`:
+1. Check `File.Exists(targetPath)` and reset attributes to `FileAttributes.Normal`.
+2. Write the updated `.ico` byte payload via `File.WriteAllBytes`.
+3. Re-apply `FileAttributes.Hidden` once the stream is closed.
+
