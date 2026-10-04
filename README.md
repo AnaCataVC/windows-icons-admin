@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon.png" alt="windows-icons-admin Logo" width="120" />
+</p>
+
 # WindowsIconsAdmin
 
 [English](README.md) | [Español](README.es.md)
@@ -166,3 +170,4 @@ windows-icons-admin/
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
