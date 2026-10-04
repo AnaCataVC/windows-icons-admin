@@ -9,7 +9,7 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C# 13](https://img.shields.io/badge/C%23-13.0-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Tests Passing](https://img.shields.io/badge/Tests-188%20passing-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
+[![Tests Passing](https://img.shields.io/badge/Tests-345%20passing-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
 [![Architecture](https://img.shields.io/badge/Architecture-Cleanroom%20TDD-orange)](docs/adr/0001-winui3-dotnet-architecture.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -130,7 +130,7 @@ Building and architecting WindowsIconsAdmin under Cleanroom TDD standards yielde
 - **Win32 Folder Attribute Shell Gate:** Windows Explorer ignores `desktop.ini` unless the directory is flagged with `FILE_ATTRIBUTE_READONLY` or `FILE_ATTRIBUTE_SYSTEM`. On folders, this attribute does not lock write permissions and acts solely as an internal shell signal to parse customizations.
 - **Non-Destructive Shell Refresh:** Terminating `explorer.exe` disrupts taskbar state and running tray apps. Instant live updates are achieved via dual Win32 notifications: `SHCNE_UPDATEITEM` for path-specific updates paired with `SHCNE_ASSOCCHANGED` to invalidate the in-memory shell icon cache.
 - **GDI+ Silent PNG Truncation Guard:** Standard .NET image decoders silently process truncated PNG streams lacking valid `IEND` footer chunks. A custom chunk-level PNG integrity parser was built to prevent generating malformed `.ico` binaries.
-- **Cleanroom TDD Architectural Decoupling:** `WindowsIconsAdmin.Core` was engineered with zero dependencies on UI or platform APIs, enforcing frozen interface contracts and 160 air-gapped unit tests covering ReDoS timeouts, thread-safe undo transactions, and multi-resolution binary encoding.
+- **Cleanroom TDD Architectural Decoupling:** `WindowsIconsAdmin.Core` was engineered with zero dependencies on UI or platform APIs, enforcing frozen interface contracts and 345 air-gapped unit tests covering ReDoS timeouts, thread-safe undo transactions, multi-resolution binary encoding, and system folder protection safeguards.
 - **Dual Storage Modality:** Architecture supports both Centralized icon storage in `%LOCALAPPDATA%` (clean folders without loose assets) and Portable mode directly inside customized directories (preserving icons across network shares and removable drives).
 
 ---
@@ -143,7 +143,8 @@ windows-icons-admin/
 │   ├── adr/
 │   │   └── 0001-winui3-dotnet-architecture.md
 │   ├── contracts/
-│   │   └── core-services.contract.md
+│   │   ├── core-services.contract.md
+│   │   └── safety-and-integrity.contract.md
 │   ├── external-references/
 │   │   ├── folder-icon-tool-stack-alternatives.md
 │   │   └── windows-folder-icons-automation.md
@@ -153,13 +154,17 @@ windows-icons-admin/
 │   └── WindowsIconsAdmin.Core/
 │       ├── History/       # Transactional undo and rolling snapshot store
 │       ├── Imaging/       # Chunk-verified multi-resolution ICO encoder
-│       └── Rules/         # ReDoS-safe rule matching engine
+│       ├── Rules/         # ReDoS-safe rule matching engine
+│       ├── Safety/        # System folder protection & traversal guard
+│       └── Shell/         # Hardened INI helpers and shell services
 ├── tests/
 │   └── WindowsIconsAdmin.Core.Tests/
 │       ├── Helpers/       # Test PNG and ICO binary validators
 │       ├── History/       # UndoStore concurrency and durability tests
 │       ├── Imaging/       # IcoEncoder pixel and chunk boundary tests
-│       └── Rules/         # RuleEngine regex and condition tests
+│       ├── Rules/         # RuleEngine regex and condition tests
+│       ├── Safety/        # SystemFolderGuard and path traversal tests
+│       └── Shell/         # Hardened IniHelper and ShellIconService tests
 ├── README.md
 ├── README.es.md
 └── WindowsIconsAdmin.sln

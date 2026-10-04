@@ -9,7 +9,7 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![C# 13](https://img.shields.io/badge/C%23-13.0-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Tests Passing](https://img.shields.io/badge/Tests-188%20superadas-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
+[![Tests Passing](https://img.shields.io/badge/Tests-345%20superadas-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
 [![Architecture](https://img.shields.io/badge/Arquitectura-Cleanroom%20TDD-orange)](docs/adr/0001-winui3-dotnet-architecture.md)
 [![License](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
 
@@ -130,7 +130,7 @@ El diseño e implementación de WindowsIconsAdmin bajo rigurosos estándares de 
 - **Señal de Atributo Win32 en Carpetas:** Windows Explorer ignora por completo `desktop.ini` a menos que el directorio tenga el atributo `FILE_ATTRIBUTE_READONLY` o `FILE_ATTRIBUTE_SYSTEM`. En directorios, este flag no bloquea la escritura; actúa exclusivamente como señal interna del Shell para evaluar personalizaciones.
 - **Refresco No Destructivo del Shell:** Matar `explorer.exe` rompe la barra de tareas y aplicaciones en segundo plano. La actualización en vivo se logra mediante notificaciones Win32 duales: `SHCNE_UPDATEITEM` para rutas específicas combinado con `SHCNE_ASSOCCHANGED` para invalidar la caché de iconos en memoria.
 - **Protección ante Truncamiento Silencioso en GDI+:** Los decodificadores estándar de .NET procesan streams PNG truncados sin footer `IEND`. Se desarrolló un analizador de integridad a nivel de chunks para evitar la generación de binarios `.ico` corruptos.
-- **Desacoplamiento Arquitectónico Cleanroom:** `WindowsIconsAdmin.Core` se diseñó con cero dependencias de UI o APIs de plataforma, imponiendo contratos congelados y 160 pruebas unitarias aisladas que validan límites ReDoS, transacciones de deshacer hilo-seguras y codificación binaria multirresolución.
+- **Desacoplamiento Arquitectónico Cleanroom:** `WindowsIconsAdmin.Core` se diseñó con cero dependencias de UI o APIs de plataforma, imponiendo contratos congelados y 345 pruebas unitarias aisladas que validan límites ReDoS, transacciones de deshacer hilo-seguras, codificación binaria multirresolución y protecciones de carpetas del sistema contra traversal e inyecciones.
 - **Modalidad Dual de Almacenamiento:** Soporte tanto para almacenamiento centralizado en `%LOCALAPPDATA%` (carpetas limpias sin archivos sueltos) como modo portable dentro del directorio personalizado (conservando iconos en unidades extraíbles y redes compartidas).
 
 ---
@@ -143,7 +143,8 @@ windows-icons-admin/
 │   ├── adr/
 │   │   └── 0001-winui3-dotnet-architecture.md
 │   ├── contracts/
-│   │   └── core-services.contract.md
+│   │   ├── core-services.contract.md
+│   │   └── safety-and-integrity.contract.md
 │   ├── external-references/
 │   │   ├── folder-icon-tool-stack-alternatives.md
 │   │   └── windows-folder-icons-automation.md
@@ -153,13 +154,17 @@ windows-icons-admin/
 │   └── WindowsIconsAdmin.Core/
 │       ├── History/       # Registro transaccional de deshacer y retención móvil
 │       ├── Imaging/       # Codificador ICO multirresolución con verificación de chunks
-│       └── Rules/         # Motor de coincidencia de reglas seguro ante ReDoS
+│       ├── Rules/         # Motor de coincidencia de reglas seguro ante ReDoS
+│       ├── Safety/        # Protección de carpetas del sistema y traversal guard
+│       └── Shell/         # Asistentes INI robustecidos y servicios del shell
 ├── tests/
 │   └── WindowsIconsAdmin.Core.Tests/
 │       ├── Helpers/       # Validadores binarios auxiliares de PNG e ICO
 │       ├── History/       # Pruebas de concurrencia y durabilidad de UndoStore
 │       ├── Imaging/       # Pruebas de píxeles y límites de chunks en IcoEncoder
-│       └── Rules/         # Pruebas de expresiones regulares y condiciones en RuleEngine
+│       ├── Rules/         # Pruebas de expresiones regulares y condiciones en RuleEngine
+│       ├── Safety/        # Pruebas de SystemFolderGuard y traversal
+│       └── Shell/         # Pruebas de IniHelper robustecido y ShellIconService
 ├── README.md
 ├── README.es.md
 └── WindowsIconsAdmin.sln
