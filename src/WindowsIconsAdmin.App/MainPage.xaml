@@ -17,7 +17,7 @@
         </Grid.RowDefinitions>
 
         <!-- Barra de herramientas superior -->
-        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" Background="Transparent" BorderThickness="0">
+        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" BorderThickness="0">
             <AppBarButton Icon="Folder" Label="Agregar carpetas" Click="OnAddFoldersClick" />
             <AppBarButton Icon="Pictures" Label="Seleccionar icono" Click="OnSelectIconClick" />
             <AppBarSeparator />
@@ -102,7 +102,13 @@
             </Border>
 
             <!-- Panel lateral derecho: Previsualización y Configuración -->
-            <StackPanel Grid.Column="1" Spacing="16">
+            <Grid Grid.Column="1" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="16" Padding="0,0,4,0">
                 <!-- Tarjeta: Icono Seleccionado -->
                 <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="16">
                     <StackPanel Spacing="12">
@@ -136,10 +142,12 @@
                         <TextBlock Text="Portable es ideal para pendrives y carpetas compartidas." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                <!-- Botón principal de aplicación -->
-                <Button Content="Aplicar icono a seleccionadas" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40" Click="OnApplyIconClick" />
-            </StackPanel>
+                <!-- Botón principal de aplicación (siempre visible) -->
+                <Button Grid.Row="1" Content="Aplicar icono a seleccionadas" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40" Click="OnApplyIconClick" />
+            </Grid>
         </Grid>
 
         <!-- Barra de progreso para lotes -->

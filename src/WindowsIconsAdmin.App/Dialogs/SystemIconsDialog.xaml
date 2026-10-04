@@ -9,10 +9,10 @@
     DefaultButton="Primary"
     mc:Ignorable="d">
 
-    <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto">
-        <StackPanel Width="560" Spacing="16" Padding="0,0,12,0">
+    <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MinWidth="520" HorizontalAlignment="Stretch" Spacing="16" Padding="0,0,12,0">
             <!-- Selector de Sección / Pestaña -->
-            <RadioButtons x:Name="SectionSelector" SelectedIndex="0" SelectionChanged="OnSectionSelectionChanged">
+            <RadioButtons x:Name="SectionSelector" SelectedIndex="0" MaxColumns="2" SelectionChanged="OnSectionSelectionChanged">
                 <RadioButtons.Items>
                     <RadioButton Content="Escritorio / Sistema" Tag="0" />
                     <RadioButton Content="Carpetas Especiales" Tag="1" />
@@ -177,13 +177,13 @@
 
             <!-- Separador y Acción de Emergencia / Limpieza Total -->
             <Border BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="0,12,0,0">
-                <Grid>
+                <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="Restauración global:" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <Button Grid.Column="1" Content="Restaurar todo a fábrica (Emergencia)" Click="OnRestoreAllSystemIconsClick" />
+                    <Button Grid.Column="1" HorizontalAlignment="Right" Content="Restaurar todo a fábrica (Emergencia)" Click="OnRestoreAllSystemIconsClick" />
                 </Grid>
             </Border>
 

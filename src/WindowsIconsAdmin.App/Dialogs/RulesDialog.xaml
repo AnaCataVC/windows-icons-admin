@@ -9,7 +9,7 @@
     DefaultButton="Primary"
     mc:Ignorable="d">
 
-    <Grid Width="580" RowSpacing="12">
+    <Grid MinWidth="520" HorizontalAlignment="Stretch" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" MaxHeight="260" />
