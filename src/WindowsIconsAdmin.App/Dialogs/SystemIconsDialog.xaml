@@ -115,7 +115,7 @@
                         <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeDefaultFolderClick" />
                         <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreDefaultFolderClick" />
 
-                        <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFolderCheckbox" Content="Aplicar a todo el sistema (HKLM - requiere Administrador)" FontSize="12" />
+                        <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFolderCheckbox" IsChecked="True" Content="Aplicar en HKLM Shell Icons (Recomendado para Windows 11 - solicita UAC)" FontSize="12" />
                     </Grid>
                 </Border>
 
@@ -139,11 +139,11 @@
                         <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeDefaultFileClick" />
                         <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreDefaultFileClick" />
 
-                        <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFileCheckbox" Content="Aplicar a todo el sistema (HKLM - requiere Administrador)" FontSize="12" />
+                        <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFileCheckbox" IsChecked="True" Content="Aplicar en HKLM Shell Icons (Recomendado para Windows 11 - solicita UAC)" FontSize="12" />
                     </Grid>
                 </Border>
 
-                <TextBlock Text="Nota de seguridad: Los cambios a nivel de usuario (HKCU) son inmediatos y no alteran la estabilidad del sistema."
+                <TextBlock Text="Nota: En Windows 11 el Explorador lee 'Shell Icons' desde HKLM. Al cambiar el icono por defecto de carpetas o archivos, puede ser necesario pulsar 'Reiniciar Explorador' abajo para recargar la caché en memoria."
                            Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" />
             </StackPanel>
 
@@ -175,16 +175,12 @@
                 </Border>
             </StackPanel>
 
-            <!-- Separador y Acción de Emergencia / Limpieza Total -->
+            <!-- Separador y Acciones Globales -->
             <Border BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="0,12,0,0">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Restauración global:" VerticalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <Button Grid.Column="1" HorizontalAlignment="Right" Content="Restaurar todo a fábrica (Emergencia)" Click="OnRestoreAllSystemIconsClick" />
-                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Content="Reiniciar Explorador (Refrescar caché)" Click="OnRestartExplorerClick" />
+                    <Button Content="Restaurar todo a fábrica (Emergencia)" Click="OnRestoreAllSystemIconsClick" />
+                </StackPanel>
             </Border>
 
             <!-- Barra de estado / notificación -->

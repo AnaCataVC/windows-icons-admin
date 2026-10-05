@@ -99,7 +99,7 @@ public static class IniHelper
             result.AddRange(updatedSectionLines);
             for (var i = sectionEnd; i < lines.Count; i++) result.Add(lines[i]);
 
-            return string.Join(Environment.NewLine, result).TrimEnd() + Environment.NewLine;
+            return string.Join(Environment.NewLine, result).Trim() + Environment.NewLine;
         }
     }
 

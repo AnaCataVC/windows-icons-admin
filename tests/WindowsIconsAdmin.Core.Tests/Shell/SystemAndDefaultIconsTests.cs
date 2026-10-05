@@ -82,6 +82,7 @@ public class SystemAndDefaultIconsTests
     public void ShellIconService_SetAndRestoreDefaultFolderIcon_WorksInRegistry()
     {
         const string testIcon = @"C:\Test\default_folder.ico";
+        var previousIcon = _shellService.GetCurrentDefaultFolderIcon(machineWide: false);
 
         try
         {
@@ -96,7 +97,14 @@ public class SystemAndDefaultIconsTests
         }
         finally
         {
-            _shellService.RestoreDefaultFolderIcon(machineWide: false);
+            if (!string.IsNullOrEmpty(previousIcon))
+            {
+                _shellService.SetDefaultFolderIcon(previousIcon, machineWide: false);
+            }
+            else
+            {
+                _shellService.RestoreDefaultFolderIcon(machineWide: false);
+            }
         }
     }
 
@@ -104,6 +112,7 @@ public class SystemAndDefaultIconsTests
     public void ShellIconService_SetAndRestoreDefaultFileIcon_WorksInRegistry()
     {
         const string testIcon = @"C:\Test\default_file.ico";
+        var previousIcon = _shellService.GetCurrentDefaultFileIcon(machineWide: false);
 
         try
         {
@@ -118,7 +127,76 @@ public class SystemAndDefaultIconsTests
         }
         finally
         {
-            _shellService.RestoreDefaultFileIcon(machineWide: false);
+            if (!string.IsNullOrEmpty(previousIcon))
+            {
+                _shellService.SetDefaultFileIcon(previousIcon, machineWide: false);
+            }
+            else
+            {
+                _shellService.RestoreDefaultFileIcon(machineWide: false);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(SpecialFolderKind.Desktop)]
+    [InlineData(SpecialFolderKind.Downloads)]
+    [InlineData(SpecialFolderKind.Documents)]
+    [InlineData(SpecialFolderKind.Pictures)]
+    [InlineData(SpecialFolderKind.Music)]
+    [InlineData(SpecialFolderKind.Videos)]
+    public void SpecialFoldersService_GetSpecialFolderClsids_ReturnsNonEmptyClsidList(SpecialFolderKind kind)
+    {
+        var clsids = SpecialFoldersService.GetSpecialFolderClsids(kind);
+        Assert.NotEmpty(clsids);
+        Assert.All(clsids, c =>
+        {
+            Assert.StartsWith("{", c);
+            Assert.EndsWith("}", c);
+            Assert.True(Guid.TryParse(c, out _));
+        });
+    }
+
+    [Fact]
+    public void SpecialFoldersService_TryGetSpecialFolderKind_MatchesResolvedKnownFolders()
+    {
+        foreach (var kind in Enum.GetValues<SpecialFolderKind>())
+        {
+            var resolved = SpecialFoldersService.ResolveFolderPath(kind);
+            var matched = SpecialFoldersService.TryGetSpecialFolderKind(resolved, out var detectedKind);
+            Assert.True(matched);
+            Assert.Equal(kind, detectedKind);
+        }
+    }
+
+    [Fact]
+    public void ShellIconService_SetAndRestoreSpecialFolderRegistryIcons_WorksAndPreservesPreviousState()
+    {
+        const SpecialFolderKind targetKind = SpecialFolderKind.Desktop;
+        const string testIcon = @"C:\Test\special_desktop.ico";
+        var previousIcon = _shellService.GetCurrentSpecialFolderRegistryIcon(targetKind);
+
+        try
+        {
+            _shellService.SetSpecialFolderRegistryIcons(targetKind, testIcon);
+            var current = _shellService.GetCurrentSpecialFolderRegistryIcon(targetKind);
+            Assert.NotNull(current);
+            Assert.Contains("special_desktop.ico", current);
+
+            _shellService.RestoreSpecialFolderRegistryIcons(targetKind);
+            var restored = _shellService.GetCurrentSpecialFolderRegistryIcon(targetKind);
+            Assert.Null(restored);
+        }
+        finally
+        {
+            if (!string.IsNullOrEmpty(previousIcon))
+            {
+                _shellService.SetSpecialFolderRegistryIcons(targetKind, previousIcon);
+            }
+            else
+            {
+                _shellService.RestoreSpecialFolderRegistryIcons(targetKind);
+            }
         }
     }
 }

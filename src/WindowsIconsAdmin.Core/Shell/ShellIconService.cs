@@ -24,11 +24,48 @@ public class ShellIconService
     public const uint SHCNF_FLUSH = 0x1000;
     public const uint SHCNF_FLUSHNOWAIT = 0x2000;
 
+    // SHGetSetFolderCustomSettings constants
+    private const uint FCSM_ICONFILE = 0x00000010;
+    private const uint FCS_FORCEWRITE = 0x00000002;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SHFOLDERCUSTOMSETTINGS
+    {
+        public uint dwSize;
+        public uint dwMask;
+        public IntPtr pvid;
+        public string? pszWebViewTemplate;
+        public uint cchWebViewTemplate;
+        public string? pszWebViewTemplateVersion;
+        public string? pszInfoTip;
+        public uint cchInfoTip;
+        public IntPtr pclsid;
+        public uint dwFlags;
+        public string? pszIconFile;
+        public uint cchIconFile;
+        public int iIconIndex;
+        public string? pszLogo;
+        public uint cchLogo;
+    }
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetFileAttributesW(string lpFileName, uint dwFileAttributes);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint GetFileAttributesW(string lpFileName);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool WritePrivateProfileStringW(
+        string? lpAppName,
+        string? lpKeyName,
+        string? lpString,
+        string lpFileName);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHGetSetFolderCustomSettings(
+        ref SHFOLDERCUSTOMSETTINGS pfcs,
+        string pszPath,
+        uint dwReadWrite);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
@@ -71,7 +108,17 @@ public class ShellIconService
             SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
         }
 
+        // Notify windows.storage.dll internal custom settings cache first
+        TryApplyNativeFolderCustomSettings(folderPath, iconResource);
+
+        if (File.Exists(iniPath))
+        {
+            SetAttributes(iniPath, FILE_ATTRIBUTE_NORMAL);
+        }
+
+        // Write full content preserving custom sections ([ViewState], LocalizedResourceName, etc.)
         File.WriteAllText(iniPath, updatedContent);
+        FlushIniMappingCache(iniPath);
 
         // Required attributes: Hidden + System on desktop.ini
         SetAttributes(iniPath, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
@@ -81,6 +128,13 @@ public class ShellIconService
         if ((folderAttrs & FILE_ATTRIBUTE_READONLY) == 0 && (folderAttrs & FILE_ATTRIBUTE_SYSTEM) == 0)
         {
             SetAttributes(folderPath, folderAttrs | FILE_ATTRIBUTE_READONLY);
+        }
+
+        // If this folder is a Windows KnownFolder (Desktop, Downloads, Documents, Pictures, Music, Videos),
+        // also synchronize its Shell Namespace CLSIDs in HKCU so Windows 11 Home / Quick Access / Nav Pane update.
+        if (SpecialFoldersService.TryGetSpecialFolderKind(folderPath, out var specialKind))
+        {
+            SetSpecialFolderRegistryIcons(specialKind, iconResource);
         }
 
         // Notify Explorer for this specific folder
@@ -98,7 +152,8 @@ public class ShellIconService
             throw new DirectoryNotFoundException($"Folder not found: {folderPath}");
         }
 
-        var isKnown = isKnownFolder || SystemFolderGuard.IsKnownFolder(folderPath);
+        var isSpecial = SpecialFoldersService.TryGetSpecialFolderKind(folderPath, out var specialKind);
+        var isKnown = isKnownFolder || isSpecial || SystemFolderGuard.IsKnownFolder(folderPath);
 
         var iniPath = Path.Combine(folderPath, "desktop.ini");
         var snapshot = CaptureSnapshot(folderPath, null);
@@ -112,11 +167,13 @@ public class ShellIconService
             if (remaining is not null)
             {
                 File.WriteAllText(iniPath, remaining);
+                FlushIniMappingCache(iniPath);
                 SetAttributes(iniPath, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
             }
             else
             {
                 File.Delete(iniPath);
+                FlushIniMappingCache(iniPath);
             }
         }
 
@@ -135,6 +192,11 @@ public class ShellIconService
             var cleanedAttrs = folderAttrs & ~(FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM);
             if (cleanedAttrs == 0) cleanedAttrs = FILE_ATTRIBUTE_NORMAL;
             SetAttributes(folderPath, cleanedAttrs);
+        }
+
+        if (isSpecial)
+        {
+            RestoreSpecialFolderRegistryIcons(specialKind);
         }
 
         NotifyFolderUpdated(folderPath);
@@ -355,6 +417,66 @@ public class ShellIconService
         return key.GetValue(info.ValueName) as string;
     }
 
+    public virtual void SetSpecialFolderRegistryIcons(SpecialFolderKind kind, string iconPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
+        ValidateLocalIconPath(iconPath);
+        var formatted = FormatIconResourcePath(iconPath);
+
+        var clsids = SpecialFoldersService.GetSpecialFolderClsids(kind);
+        foreach (var clsid in clsids)
+        {
+            using (var expKey = Registry.CurrentUser.CreateSubKey($@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{clsid}\DefaultIcon", writable: true))
+            {
+                expKey.SetValue("", formatted, RegistryValueKind.String);
+            }
+
+            using (var clsKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\CLSID\{clsid}\DefaultIcon", writable: true))
+            {
+                clsKey.SetValue("", formatted, RegistryValueKind.String);
+            }
+
+            using (var themeKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon", writable: true))
+            {
+                themeKey.SetValue(clsid, formatted, RegistryValueKind.String);
+            }
+        }
+    }
+
+    public virtual void RestoreSpecialFolderRegistryIcons(SpecialFolderKind kind)
+    {
+        var clsids = SpecialFoldersService.GetSpecialFolderClsids(kind);
+        foreach (var clsid in clsids)
+        {
+            using (var expKey = Registry.CurrentUser.OpenSubKey($@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{clsid}", writable: true))
+            {
+                expKey?.DeleteSubKeyTree("DefaultIcon", false);
+            }
+
+            using (var clsKey = Registry.CurrentUser.OpenSubKey($@"Software\Classes\CLSID\{clsid}", writable: true))
+            {
+                clsKey?.DeleteSubKeyTree("DefaultIcon", false);
+            }
+
+            using (var themeKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon", writable: true))
+            {
+                themeKey?.DeleteValue(clsid, false);
+            }
+        }
+    }
+
+    public virtual string? GetCurrentSpecialFolderRegistryIcon(SpecialFolderKind kind)
+    {
+        var clsids = SpecialFoldersService.GetSpecialFolderClsids(kind);
+        foreach (var clsid in clsids)
+        {
+            using var expKey = Registry.CurrentUser.OpenSubKey($@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{clsid}\DefaultIcon");
+            var val = expKey?.GetValue("") as string;
+            if (!string.IsNullOrEmpty(val)) return val;
+        }
+        return null;
+    }
+
     public virtual void SetDefaultFolderIcon(string iconPath, bool machineWide = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(iconPath);
@@ -380,12 +502,11 @@ public class ShellIconService
 
         if (machineWide)
         {
-            using var hklmKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
-            hklmKey.SetValue("3", formatted, RegistryValueKind.String);
-            hklmKey.SetValue("4", formatted, RegistryValueKind.String);
+            SetHklmShellIconsValues(("3", formatted), ("4", formatted));
         }
 
         NotifyBatchCompleted();
+        TryRunIe4uinit();
     }
 
     public virtual void RestoreDefaultFolderIcon(bool machineWide = false)
@@ -408,12 +529,11 @@ public class ShellIconService
 
         if (machineWide)
         {
-            using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
-            hklmKey?.DeleteValue("3", false);
-            hklmKey?.DeleteValue("4", false);
+            DeleteHklmShellIconsValues("3", "4");
         }
 
         NotifyBatchCompleted();
+        TryRunIe4uinit();
     }
 
     public virtual string? GetCurrentDefaultFolderIcon(bool machineWide = false)
@@ -453,11 +573,11 @@ public class ShellIconService
 
         if (machineWide)
         {
-            using var hklmKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
-            hklmKey.SetValue("0", formatted, RegistryValueKind.String);
+            SetHklmShellIconsValues(("0", formatted));
         }
 
         NotifyBatchCompleted();
+        TryRunIe4uinit();
     }
 
     public virtual void RestoreDefaultFileIcon(bool machineWide = false)
@@ -474,11 +594,11 @@ public class ShellIconService
 
         if (machineWide)
         {
-            using var hklmKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons", writable: true);
-            hklmKey?.DeleteValue("0", false);
+            DeleteHklmShellIconsValues("0");
         }
 
         NotifyBatchCompleted();
+        TryRunIe4uinit();
     }
 
     public virtual string? GetCurrentDefaultFileIcon(bool machineWide = false)
@@ -506,9 +626,176 @@ public class ShellIconService
         {
             RestoreSystemIcon(kind);
         }
+
+        foreach (var specialKind in Enum.GetValues<SpecialFolderKind>())
+        {
+            RestoreSpecialFolderRegistryIcons(specialKind);
+        }
+
         RestoreDefaultFolderIcon(machineWide: false);
         RestoreDefaultFileIcon(machineWide: false);
         NotifyBatchCompleted();
+        TryRunIe4uinit();
+    }
+
+    public virtual void RefreshExplorerIconCache(bool restartExplorer = false)
+    {
+        TryRunIe4uinit();
+        NotifyBatchCompleted();
+
+        if (restartExplorer)
+        {
+            try
+            {
+                foreach (var proc in System.Diagnostics.Process.GetProcessesByName("explorer"))
+                {
+                    try { proc.Kill(); } catch { }
+                }
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // Ignore if Explorer restart fails
+            }
+        }
+    }
+
+    private static void SetHklmShellIconsValues(params (string Name, string Value)[] entries)
+    {
+        const string subKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons";
+        try
+        {
+            using var hklmKey = Registry.LocalMachine.CreateSubKey(subKeyPath, writable: true);
+            foreach (var (name, value) in entries)
+            {
+                hklmKey.SetValue(name, value, RegistryValueKind.String);
+            }
+            return;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            // Fallback to UAC-elevated reg.exe so standard-user execution can elevate cleanly
+        }
+
+        var commands = entries.Select(e =>
+            $"reg add \"HKLM\\{subKeyPath}\" /v \"{e.Name}\" /t REG_SZ /d \"{e.Value}\" /f");
+        RunElevatedCmd(string.Join(" & ", commands));
+    }
+
+    private static void DeleteHklmShellIconsValues(params string[] valueNames)
+    {
+        const string subKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons";
+        try
+        {
+            using var hklmKey = Registry.LocalMachine.OpenSubKey(subKeyPath, writable: true);
+            if (hklmKey != null)
+            {
+                foreach (var name in valueNames)
+                {
+                    hklmKey.DeleteValue(name, false);
+                }
+            }
+            return;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            // Fallback to UAC-elevated reg.exe
+        }
+
+        var commands = valueNames.Select(name =>
+            $"reg delete \"HKLM\\{subKeyPath}\" /v \"{name}\" /f");
+        RunElevatedCmd(string.Join(" & ", commands));
+    }
+
+    private static void RunElevatedCmd(string commandLine)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/c {commandLine}",
+            Verb = "runas",
+            UseShellExecute = true,
+            WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+            CreateNoWindow = true
+        };
+
+        using var proc = System.Diagnostics.Process.Start(psi);
+        proc?.WaitForExit(15000);
+    }
+
+    private static void TryRunIe4uinit()
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "ie4uinit.exe",
+                Arguments = "-show",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+            };
+            using var proc = System.Diagnostics.Process.Start(psi);
+            proc?.WaitForExit(3000);
+        }
+        catch
+        {
+            // Ignore if ie4uinit is unavailable
+        }
+    }
+
+    private static void TryApplyNativeFolderCustomSettings(string folderPath, string iconResource)
+    {
+        try
+        {
+            ParseIconResource(iconResource, out var iconFilePath, out var iconIndex);
+            var fcs = new SHFOLDERCUSTOMSETTINGS
+            {
+                dwSize = (uint)Marshal.SizeOf<SHFOLDERCUSTOMSETTINGS>(),
+                dwMask = FCSM_ICONFILE,
+                pszIconFile = iconFilePath,
+                cchIconFile = 0,
+                iIconIndex = iconIndex
+            };
+            SHGetSetFolderCustomSettings(ref fcs, folderPath, FCS_FORCEWRITE);
+        }
+        catch
+        {
+            // Best-effort cache notification for windows.storage.dll
+        }
+    }
+
+    private static void ParseIconResource(string iconResource, out string iconFilePath, out int iconIndex)
+    {
+        var trimmed = iconResource.Trim();
+        var lastComma = trimmed.LastIndexOf(',');
+        if (lastComma > 0 && int.TryParse(trimmed[(lastComma + 1)..].Trim(), out var parsedIndex))
+        {
+            iconFilePath = trimmed[..lastComma].Trim().Trim('"');
+            iconIndex = parsedIndex;
+        }
+        else
+        {
+            iconFilePath = trimmed.Trim('"');
+            iconIndex = 0;
+        }
+    }
+
+    private static void FlushIniMappingCache(string iniPath)
+    {
+        try
+        {
+            WritePrivateProfileStringW(null, null, null, iniPath);
+        }
+        catch
+        {
+            // Best-effort Win32 INI cache flush
+        }
     }
 
     private static FolderSnapshot CaptureSnapshot(string folderPath, string? copiedFileName)

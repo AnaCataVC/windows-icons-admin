@@ -190,6 +190,16 @@ public sealed partial class SystemIconsDialog : ContentDialog
             };
             infoStack.Children.Add(pathBlock);
 
+            var currentCustomIcon = _shellService.GetCurrentSpecialFolderRegistryIcon(folder.Kind);
+            var statusBlock = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(currentCustomIcon) ? "Icono: Predeterminado de Windows" : $"Icono: {currentCustomIcon}",
+                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            infoStack.Children.Add(statusBlock);
+
             if (folder.IsCloudSynced)
             {
                 var cloudBadge = new TextBlock
@@ -212,9 +222,14 @@ public sealed partial class SystemIconsDialog : ContentDialog
                     var iconRes = await PickAndPrepareIconAsync();
                     if (iconRes == null) return;
 
-                    _shellService.ApplyFolderIcon(folder.FolderPath, iconRes);
-                    _shellService.NotifyBatchCompleted();
-                    ShowInfo($"Icono de '{folder.DisplayName}' actualizado correctamente.", InfoBarSeverity.Success);
+                    if (Directory.Exists(folder.FolderPath))
+                    {
+                        _shellService.ApplyFolderIcon(folder.FolderPath, iconRes);
+                    }
+                    _shellService.SetSpecialFolderRegistryIcons(folder.Kind, iconRes);
+                    _shellService.RefreshExplorerIconCache(restartExplorer: false);
+                    PopulateSpecialFolders();
+                    ShowInfo($"Icono de '{folder.DisplayName}' actualizado en desktop.ini y CLSIDs del sistema.", InfoBarSeverity.Success);
                 }
                 catch (Exception ex)
                 {
@@ -229,8 +244,13 @@ public sealed partial class SystemIconsDialog : ContentDialog
             {
                 try
                 {
-                    _shellService.RestoreFolderDefault(folder.FolderPath);
-                    _shellService.NotifyBatchCompleted();
+                    if (Directory.Exists(folder.FolderPath))
+                    {
+                        _shellService.RestoreFolderDefault(folder.FolderPath, isKnownFolder: true);
+                    }
+                    _shellService.RestoreSpecialFolderRegistryIcons(folder.Kind);
+                    _shellService.RefreshExplorerIconCache(restartExplorer: false);
+                    PopulateSpecialFolders();
                     ShowInfo($"Icono de '{folder.DisplayName}' restaurado a su valor nativo.", InfoBarSeverity.Success);
                 }
                 catch (Exception ex)
@@ -405,7 +425,20 @@ public sealed partial class SystemIconsDialog : ContentDialog
 
     #endregion
 
-    #region ACCIÓN GLOBAL DE EMERGENCIA
+    #region ACCIÓN GLOBAL DE EMERGENCIA Y REFRESCO
+
+    private void OnRestartExplorerClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _shellService.RefreshExplorerIconCache(restartExplorer: true);
+            ShowInfo("Explorador de Windows reiniciado y caché de iconos refrescada.", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowInfo($"Error al reiniciar el Explorador: {ex.Message}", InfoBarSeverity.Error);
+        }
+    }
 
     private void OnRestoreAllSystemIconsClick(object sender, RoutedEventArgs e)
     {
@@ -413,7 +446,8 @@ public sealed partial class SystemIconsDialog : ContentDialog
         {
             _shellService.RestoreAllSystemAndDefaultIcons();
             RefreshAllStatuses();
-            ShowInfo("Todos los iconos de sistema y predeterminados fueron restaurados al estado original de Windows.", InfoBarSeverity.Success);
+            PopulateSpecialFolders();
+            ShowInfo("Todos los iconos de sistema, carpetas especiales y predeterminados fueron restaurados al estado original de Windows.", InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {

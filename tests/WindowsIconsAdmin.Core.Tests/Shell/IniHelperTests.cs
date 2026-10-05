@@ -167,5 +167,16 @@ public class IniHelperTests
         Assert.Contains("FolderType=Generic", result);
     }
 
+    [Fact]
+    public void SetIconResource_WhenExistingContentHasLeadingBlankLines_TrimsLeadingBlankLines()
+    {
+        var existing = "\r\n\r\n[.ShellClassInfo]\r\nLocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21770\r\n";
+        var result = IniHelper.SetIconResource(existing, @"C:\Icons\docs.ico,0");
+
+        Assert.StartsWith("[.ShellClassInfo]", result);
+        Assert.Contains(@"IconResource=C:\Icons\docs.ico,0", result);
+        Assert.Contains("LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21770", result);
+    }
+
     #endregion
 }
