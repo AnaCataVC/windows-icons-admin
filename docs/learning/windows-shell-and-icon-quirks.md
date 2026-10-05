@@ -204,18 +204,15 @@ To provide native multi-folder selection in a single dialog session without exte
 
 ---
 
-## 8. Windows 11 Default Folder Icon Overrides (`HKCU` vs `Shell Icons`)
+## 8. Windows 11 Default Folder Icon Overrides (`HKLM` vs `HKCU` `Shell Icons`)
 
-### 8.1 Why `HKCU\Software\Classes\Folder\DefaultIcon` Alone Is Insufficient
-On Windows 11, writing only to `HKCU\Software\Classes\Folder\DefaultIcon` does not consistently update standard file system folders in Windows Explorer. Explorer resolves generic closed/open folder glyphs through `Shell Icons` table indices `3` (closed folder) and `4` (open folder) as well as the `Directory` class registration. Furthermore, writing to `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons` fails with `UnauthorizedAccessException` unless the process is running with elevated Administrator privileges.
+### 8.1 Why `HKCU` Alone Is Insufficient for `SIID_FOLDER` in Windows 11
+On Windows 11, generic file system folders without a custom `desktop.ini` resolve their stock icon (`SIID_FOLDER = 3`, `imageres.dll,-3`) via `SHGetStockIconInfo`, which inspects the `Shell Icons` registry redirect table (`"3"` for closed folder, `"4"` for open folder) under **`HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons`**. While `HKCU\Software\Classes\Folder\DefaultIcon` and `HKCU\...\Explorer\Shell Icons` are updated as a per-user baseline, Windows 11's modern Explorer shell ignores `HKCU\...\Shell Icons` for standard directories unless `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons` is also populated.
 
-### 8.2 Zero-Elevation Multi-Key Synchronization
-To reliably customize (and restore) the global default folder icon for the current user without requiring UAC elevation, synchronize all three per-user registry locations simultaneously:
-1. `HKCU\Software\Classes\Folder\DefaultIcon` (default value)
-2. `HKCU\Software\Classes\Directory\DefaultIcon` (default value)
-3. `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons` (string values `"3"` and `"4"`)
-
-Additionally, when notifying Explorer of per-folder or batch icon updates, emit both `SHCNE_UPDATEITEM` (`0x00002000`) and `SHCNE_UPDATEDIR` (`0x00001000`) combined with `SHCNF_PATHW | SHCNF_FLUSHNOWAIT` (`0x2005`) on the target directory and its parent directory before firing `SHCNE_ASSOCCHANGED`.
+### 8.2 On-Demand UAC Elevation for `HKLM\...\Shell Icons`
+Because `WindowsIconsAdmin` runs as a standard user (`asInvoker`) by default, writing directly to `Registry.LocalMachine` throws `UnauthorizedAccessException`. When the user applies or restores the global default folder or file icon with the `HKLM` option enabled:
+1. `ShellIconService` first attempts direct `Registry.LocalMachine` access (succeeding immediately if already elevated).
+2. On `UnauthorizedAccessException` or `SecurityException`, it invokes an elevated `cmd.exe /c reg add ...` (or `reg delete ...`) process with `Verb = "runas"` (`UseShellExecute = true`, `WindowStyle = Hidden`), followed by `ie4uinit.exe -show` and `SHCNE_ASSOCCHANGED`.
 
 ---
 
@@ -229,4 +226,30 @@ Before writing `.folder_icon.ico` in `IconStorageService.PrepareIconForFolder`:
 1. Check `File.Exists(targetPath)` and reset attributes to `FileAttributes.Normal`.
 2. Write the updated `.ico` byte payload via `File.WriteAllBytes`.
 3. Re-apply `FileAttributes.Hidden` once the stream is closed.
+
+---
+
+## 10. Windows 11 Special Folders (`KnownFolders`) in Home, Quick Access & Navigation Pane
+
+### 10.1 Why `desktop.ini` Alone Fails in Windows 11 Home (`shell:::{f874310e-...}`)
+In Windows 11 Explorer's **Home** (`shell:::{f874310e-b6b7-47dc-bc84-b9e6b38f5903}`), **Quick Access** (`shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}`), and the left **Navigation Pane**, user profile `KnownFolders` (Desktop, Downloads, Documents, Pictures, Music, Videos) are not bound as plain filesystem directories. Instead, they are shell namespace items backed by `DelegateFolders` and `CLSID` registrations under `HKCR\CLSID\{CLSID}\DefaultIcon` (pointing to `imageres.dll,-183`, `-184`, `-112`, `-113`, `-108`, `-189`).
+
+Consequently:
+- Writing `IconResource=...` to `desktop.ini` inside `Downloads` or `OneDrive\Documents` is ignored when Explorer renders the pinned Quick Access / Home cards.
+- Moreover, direct `File.WriteAllText` calls bypass `windows.storage.dll`'s in-memory folder customization cache (`SHGetSetFolderCustomSettings`) and the Win32 INI file mapping cache.
+
+### 10.2 Multi-Layer KnownFolder Icon Synchronization
+To guarantee that Special Folders update across both filesystem views and Windows 11 Home / Quick Access / Navigation Pane without requiring Administrator privileges:
+1. **Native Shell Cache Write (`SHGetSetFolderCustomSettings`):** Call `SHGetSetFolderCustomSettings(ref fcs, folderPath, FCS_FORCEWRITE = 0x2)` (`dwMask = FCSM_ICONFILE = 0x10`) so `windows.storage.dll` updates its internal folder settings cache, then write the full `desktop.ini` (preserving `LocalizedResourceName` and `[ViewState]`) and flush the Win32 INI cache via `WritePrivateProfileStringW(null, null, null, iniPath)`.
+2. **Per-User `HKCU` CLSID Override:** Override `DefaultIcon` for all associated Shell Namespace CLSIDs of the target `SpecialFolderKind` under:
+   - `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{CLSID}\DefaultIcon`
+   - `HKCU\Software\Classes\CLSID\{CLSID}\DefaultIcon`
+   - `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon`
+3. **Complete KnownFolder & DelegateFolder CLSID Matrix:**
+   - **Desktop:** `{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}`
+   - **Downloads:** `{088e3905-0323-4b02-9826-5d99428e115f}`, `{374DE290-123F-4565-9164-39C4925E467B}`
+   - **Documents:** `{d3162b92-9365-467a-956b-92703aca08af}`, `{A8CDFF1C-4878-43be-B5FD-F8091C1C60D0}`, `{FDD39AD0-238F-46AF-ADB4-6C85480369C7}`
+   - **Pictures:** `{24ad3ad4-a569-4530-98e1-ab02f9417aa8}`, `{3ADD1653-EB32-4cb0-BBD7-DFA0ABB5ACCA}`, `{33E28130-4E1E-4676-835A-98395C3BC3BB}`
+   - **Music:** `{3dfdf296-dbec-4fb4-81d1-6a3438bcf4de}`, `{1CF1260C-4DD0-4ebb-811F-33C572699FDE}`, `{4BD8D571-6D19-48D3-BE97-422220080E43}`
+   - **Videos:** `{f86fa3ab-70d2-4fc7-9c99-fcbf05467f3a}`, `{A0953C92-50DC-43bf-BE83-3742FED03C9C}`, `{18989B1D-99B5-455B-841C-AB7C74E4DDFC}`
 
