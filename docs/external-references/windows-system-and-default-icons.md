@@ -1,8 +1,11 @@
+> **Created:** 2026-10-04
+> **Last Updated:** 2026-10-06
+
 # Windows System, Default Folder, and File Type Icons Architecture & Registry Reference
 
 ## 1. Executive Summary
 Windows Shell organizes icons across several distinct subsystems:
-1. **Desktop / Shell CLSID Icons**: Virtual shell objects (Recycle Bin, This PC, Network, User Files) defined by CLSID in Registry.
+1. **Desktop / Shell CLSID Icons**: Virtual shell objects (Recycle Bin, This PC, Network, User Files, Home, Gallery, Linux WSL) defined by CLSID in Registry (see also [Windows 11 Navigation Pane & Drive Icon Customization Reference](windows11-navigation-pane-and-drive-icons.md)).
 2. **Special User Folders (Known Folders)**: Physical filesystem directories (Desktop, Documents, Downloads, Pictures, Music, Videos) customized via `desktop.ini` or KnownFolder GUIDs.
 3. **Generic Default Folder Icons**: The standard closed/open folder icon used by Windows Explorer for uncustomized directories.
 4. **Generic Unknown File Icon**: The fallback icon shown for unregistered or unknown file extensions.
@@ -10,11 +13,13 @@ Windows Shell organizes icons across several distinct subsystems:
 
 ---
 
-## 2. Desktop & Shell CLSID Icons (Recycle Bin, This PC, Network, User Files)
+## 2. Desktop & Shell CLSID Icons (Recycle Bin, This PC, Network, User Files, Navigation Pane)
 
 ### Registry Locations
-- **User CLSID Overrides**:
+- **User CLSID Overrides (Desktop & Shell)**:
   `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{CLSID}\DefaultIcon`
+- **Per-User HKCR Merged CLSID Overrides (Navigation Pane)**:
+  `HKEY_CURRENT_USER\Software\Classes\CLSID\{CLSID}\DefaultIcon`
 - **Windows Themes Overrides** (Windows 10 / 11 Themes sync & override):
   `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon`
 
@@ -25,6 +30,9 @@ Windows Shell organizes icons across several distinct subsystems:
 | **This PC** | `{20D04FE0-3AEA-1069-A2D8-08002B30309D}` | `(Default)` |
 | **Network** | `{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}` | `(Default)` |
 | **User Files** | `{59031a47-3f72-44a7-89c5-5595fe6b30ee}` | `(Default)` |
+| **Home (`Inicio`)** | `{f874310e-b6b7-47dc-bc84-b9e6b38f5903}` | `(Default)` |
+| **Gallery (`Galería`)** | `{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}` | `(Default)` |
+| **Linux (WSL)** | `{B2B4A4D1-2754-4140-A2EB-9A76D9D7CDC6}` | `(Default)` |
 
 ### Critical Quirks & Requirements:
 1. **Icon Path Formatting**: The path stored in `DefaultIcon` registry keys **MUST include the resource index suffix** (e.g., `C:\Path\icon.ico,0`). If `,0` is stripped, Windows Explorer often fails to resolve or render the icon.
