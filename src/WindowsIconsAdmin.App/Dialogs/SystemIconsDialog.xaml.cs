@@ -29,9 +29,10 @@ public sealed partial class SystemIconsDialog : ContentDialog
 
         var selectedIndex = SectionSelector.SelectedIndex;
         if (DesktopSection != null) DesktopSection.Visibility = selectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (SpecialFoldersSection != null) SpecialFoldersSection.Visibility = selectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        if (GlobalDefaultsSection != null) GlobalDefaultsSection.Visibility = selectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
-        if (FileExtensionsSection != null) FileExtensionsSection.Visibility = selectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+        if (NavigationPaneSection != null) NavigationPaneSection.Visibility = selectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (SpecialFoldersSection != null) SpecialFoldersSection.Visibility = selectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        if (GlobalDefaultsSection != null) GlobalDefaultsSection.Visibility = selectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+        if (FileExtensionsSection != null) FileExtensionsSection.Visibility = selectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void RefreshAllStatuses()
@@ -43,7 +44,13 @@ public sealed partial class SystemIconsDialog : ContentDialog
         UpdateStatusLabel(SystemIconKind.Network, NetworkStatus);
         UpdateStatusLabel(SystemIconKind.UserFiles, UserFilesStatus);
 
-        // 2: Global Defaults
+        // 1: Navigation Pane
+        UpdateStatusLabel(SystemIconKind.Home, HomeStatus);
+        UpdateStatusLabel(SystemIconKind.Gallery, GalleryStatus);
+        UpdateStatusLabel(SystemIconKind.LinuxWsl, LinuxWslStatus);
+        UpdateStatusLabel(SystemIconKind.OneDrivePersonal, OneDriveStatus);
+
+        // 3: Global Defaults
         var folderDef = _shellService.GetCurrentDefaultFolderIcon(MachineWideFolderCheckbox?.IsChecked == true);
         if (DefaultFolderStatus != null)
         {
@@ -57,8 +64,9 @@ public sealed partial class SystemIconsDialog : ContentDialog
         }
     }
 
-    private void UpdateStatusLabel(SystemIconKind kind, TextBlock label)
+    private void UpdateStatusLabel(SystemIconKind kind, TextBlock? label)
     {
+        if (label == null) return;
         var current = _shellService.GetCurrentSystemIcon(kind);
         label.Text = string.IsNullOrEmpty(current) ? "Predeterminado" : current;
     }
@@ -90,7 +98,7 @@ public sealed partial class SystemIconsDialog : ContentDialog
         return stored.IconResourceString;
     }
 
-    #region SECCIÓN 0: Iconos de Escritorio
+    #region SECCIÓN 0 y 1: Iconos de Escritorio y Panel de Navegación
 
     private async Task ChangeIconForKindAsync(SystemIconKind kind, TextBlock label)
     {
@@ -139,6 +147,18 @@ public sealed partial class SystemIconsDialog : ContentDialog
 
     private async void OnChangeUserFilesClick(object sender, RoutedEventArgs e) => await ChangeIconForKindAsync(SystemIconKind.UserFiles, UserFilesStatus);
     private void OnRestoreUserFilesClick(object sender, RoutedEventArgs e) => RestoreIconForKind(SystemIconKind.UserFiles);
+
+    private async void OnChangeHomeClick(object sender, RoutedEventArgs e) => await ChangeIconForKindAsync(SystemIconKind.Home, HomeStatus);
+    private void OnRestoreHomeClick(object sender, RoutedEventArgs e) => RestoreIconForKind(SystemIconKind.Home);
+
+    private async void OnChangeGalleryClick(object sender, RoutedEventArgs e) => await ChangeIconForKindAsync(SystemIconKind.Gallery, GalleryStatus);
+    private void OnRestoreGalleryClick(object sender, RoutedEventArgs e) => RestoreIconForKind(SystemIconKind.Gallery);
+
+    private async void OnChangeLinuxWslClick(object sender, RoutedEventArgs e) => await ChangeIconForKindAsync(SystemIconKind.LinuxWsl, LinuxWslStatus);
+    private void OnRestoreLinuxWslClick(object sender, RoutedEventArgs e) => RestoreIconForKind(SystemIconKind.LinuxWsl);
+
+    private async void OnChangeOneDriveClick(object sender, RoutedEventArgs e) => await ChangeIconForKindAsync(SystemIconKind.OneDrivePersonal, OneDriveStatus);
+    private void OnRestoreOneDriveClick(object sender, RoutedEventArgs e) => RestoreIconForKind(SystemIconKind.OneDrivePersonal);
 
     #endregion
 

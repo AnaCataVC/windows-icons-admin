@@ -199,4 +199,77 @@ public class SystemAndDefaultIconsTests
             }
         }
     }
+
+    [Theory]
+    [InlineData(SystemIconKind.Home, "{f874310e-b6b7-47dc-bc84-b9e6b38f5903}")]
+    [InlineData(SystemIconKind.Gallery, "{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}")]
+    [InlineData(SystemIconKind.LinuxWsl, "{B2B4A4D1-2754-4140-A2EB-9A76D9D7CDC6}")]
+    [InlineData(SystemIconKind.OneDrivePersonal, "{018D5C66-4533-4307-9B53-224DE2ED1FE6}")]
+    public void ShellIconService_GetSystemIconClsid_ReturnsExpectedNavigationPaneGuids(SystemIconKind kind, string expectedClsid)
+    {
+        var actual = ShellIconService.GetSystemIconClsid(kind);
+        Assert.Equal(expectedClsid, actual, ignoreCase: true);
+    }
+
+    [Theory]
+    [InlineData(@"C:\LocalAppData\Microsoft\OneDrive\OneDrive.exe,5", true)]
+    [InlineData(@"""C:\Program Files\Microsoft OneDrive\OneDrive.exe"",0", true)]
+    [InlineData(@"%SystemRoot%\System32\imageres.dll,-1040", true)]
+    [InlineData(@"C:\Icons\custom_onedrive.ico,0", false)]
+    [InlineData(@"", false)]
+    [InlineData(null, false)]
+    public void ShellIconService_IsNativeOneDriveIcon_DetectsNativeVsCustomIcons(string? iconValue, bool expected)
+    {
+        Assert.Equal(expected, ShellIconService.IsNativeOneDriveIcon(iconValue));
+    }
+
+    [Theory]
+    [InlineData(SystemIconKind.Home, @"C:\Windows\system32\shell32.dll,-51380", true)]
+    [InlineData(SystemIconKind.Gallery, @"C:\Windows\system32\shell32.dll,-51586", true)]
+    [InlineData(SystemIconKind.LinuxWsl, @"C:\Windows\system32\wsl.exe,-1", true)]
+    [InlineData(SystemIconKind.OneDrivePersonal, @"C:\LocalAppData\Microsoft\OneDrive\OneDrive.exe,5", true)]
+    [InlineData(SystemIconKind.Home, @"C:\Custom\home.ico,0", false)]
+    [InlineData(SystemIconKind.Gallery, @"C:\Custom\gallery.ico,0", false)]
+    [InlineData(SystemIconKind.LinuxWsl, @"C:\Custom\linux.ico,0", false)]
+    [InlineData(SystemIconKind.OneDrivePersonal, @"C:\Custom\onedrive.ico,0", false)]
+    public void ShellIconService_IsDefaultSystemIconValue_DistinguishesDefaultsFromCustomIcons(
+        SystemIconKind kind,
+        string? rawValue,
+        bool expected)
+    {
+        Assert.Equal(expected, ShellIconService.IsDefaultSystemIconValue(kind, rawValue));
+    }
+
+    [Theory]
+    [InlineData(SystemIconKind.Home)]
+    [InlineData(SystemIconKind.Gallery)]
+    [InlineData(SystemIconKind.LinuxWsl)]
+    public void ShellIconService_SetAndRestoreNavigationPaneClsid_WorksAndPreservesPreviousState(SystemIconKind kind)
+    {
+        const string testIcon = @"C:\Test\navpane_custom.ico";
+        var previousIcon = _shellService.GetCurrentSystemIcon(kind);
+
+        try
+        {
+            _shellService.SetSystemIcon(kind, testIcon);
+            var current = _shellService.GetCurrentSystemIcon(kind);
+            Assert.NotNull(current);
+            Assert.Contains("navpane_custom.ico", current);
+
+            _shellService.RestoreSystemIcon(kind);
+            var restored = _shellService.GetCurrentSystemIcon(kind);
+            Assert.Null(restored);
+        }
+        finally
+        {
+            if (!string.IsNullOrEmpty(previousIcon))
+            {
+                _shellService.SetSystemIcon(kind, previousIcon);
+            }
+            else
+            {
+                _shellService.RestoreSystemIcon(kind);
+            }
+        }
+    }
 }

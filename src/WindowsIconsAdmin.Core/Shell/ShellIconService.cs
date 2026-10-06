@@ -73,15 +73,55 @@ public class ShellIconService
     [DllImport("shell32.dll", EntryPoint = "SHUpdateRecycleBinIcon")]
     public static extern void SHUpdateRecycleBinIcon();
 
-    // CLSIDs for System Icons
+    private const string OneDriveBackupValueName = "WindowsIconsAdminBackup";
+
+    // CLSIDs for System & Navigation Pane Icons
     private static readonly Dictionary<SystemIconKind, (string Clsid, string ValueName)> SystemIconClsids = new()
     {
         [SystemIconKind.RecycleBinEmpty] = ("{645FF040-5081-101B-9F08-00AA002F954E}", "empty"),
         [SystemIconKind.RecycleBinFull] = ("{645FF040-5081-101B-9F08-00AA002F954E}", "full"),
         [SystemIconKind.ThisPC] = ("{20D04FE0-3AEA-1069-A2D8-08002B30309D}", ""),
         [SystemIconKind.Network] = ("{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}", ""),
-        [SystemIconKind.UserFiles] = ("{59031a47-3f72-44a7-89c5-5595fe6b30ee}", "")
+        [SystemIconKind.UserFiles] = ("{59031a47-3f72-44a7-89c5-5595fe6b30ee}", ""),
+        [SystemIconKind.Home] = ("{f874310e-b6b7-47dc-bc84-b9e6b38f5903}", ""),
+        [SystemIconKind.Gallery] = ("{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}", ""),
+        [SystemIconKind.LinuxWsl] = ("{B2B4A4D1-2754-4140-A2EB-9A76D9D7CDC6}", ""),
+        [SystemIconKind.OneDrivePersonal] = ("{018D5C66-4533-4307-9B53-224DE2ED1FE6}", "")
     };
+
+    public static string GetSystemIconClsid(SystemIconKind kind) =>
+        SystemIconClsids.TryGetValue(kind, out var info)
+            ? info.Clsid
+            : throw new NotSupportedException($"Unsupported system icon kind: {kind}");
+
+    public static bool IsNativeOneDriveIcon(string? iconValue)
+    {
+        if (string.IsNullOrWhiteSpace(iconValue)) return false;
+        var normalized = iconValue.Trim().Trim('"');
+        var binaryPart = normalized.Contains(',') ? normalized.Split(',')[0].Trim().Trim('"') : normalized;
+
+        return binaryPart.EndsWith(@"\OneDrive.exe", StringComparison.OrdinalIgnoreCase) ||
+               binaryPart.Equals("OneDrive.exe", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith(@"imageres.dll,-1040", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsDefaultSystemIconValue(SystemIconKind kind, string? rawRegistryValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawRegistryValue)) return true;
+        var normalized = rawRegistryValue.Trim().Trim('"');
+
+        return kind switch
+        {
+            SystemIconKind.OneDrivePersonal => IsNativeOneDriveIcon(normalized),
+            SystemIconKind.Home => normalized.EndsWith(@"shell32.dll,-51380", StringComparison.OrdinalIgnoreCase) ||
+                                   normalized.EndsWith(@"imageres.dll,-5325", StringComparison.OrdinalIgnoreCase),
+            SystemIconKind.Gallery => normalized.EndsWith(@"shell32.dll,-51586", StringComparison.OrdinalIgnoreCase),
+            SystemIconKind.LinuxWsl => normalized.EndsWith(@"\wsl.exe,-1", StringComparison.OrdinalIgnoreCase) ||
+                                       normalized.EndsWith(@"\wsl.exe,0", StringComparison.OrdinalIgnoreCase) ||
+                                       normalized.EndsWith(@"\wsl.exe", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
 
     public virtual FolderSnapshot ApplyFolderIcon(
         string folderPath,
@@ -316,12 +356,51 @@ public class ShellIconService
         }
 
         var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
-        using var key = Registry.CurrentUser.CreateSubKey(keyPath, writable: true);
-        key.SetValue(info.ValueName, formattedPath, RegistryValueKind.String);
-
-        if (kind == SystemIconKind.RecycleBinEmpty)
+        using (var key = Registry.CurrentUser.CreateSubKey(keyPath, writable: true))
         {
-            key.SetValue("", formattedPath, RegistryValueKind.String);
+            key.SetValue(info.ValueName, formattedPath, RegistryValueKind.String);
+
+            if (kind == SystemIconKind.RecycleBinEmpty)
+            {
+                key.SetValue("", formattedPath, RegistryValueKind.String);
+            }
+        }
+
+        if (kind == SystemIconKind.OneDrivePersonal)
+        {
+            using (var clsIconKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\CLSID\{info.Clsid}\DefaultIcon", writable: true))
+            {
+                var existingBackup = clsIconKey.GetValue(OneDriveBackupValueName) as string;
+                if (string.IsNullOrWhiteSpace(existingBackup))
+                {
+                    var currentDefault = clsIconKey.GetValue("") as string;
+                    if (!string.IsNullOrWhiteSpace(currentDefault) && IsNativeOneDriveIcon(currentDefault))
+                    {
+                        clsIconKey.SetValue(OneDriveBackupValueName, currentDefault, RegistryValueKind.String);
+                    }
+                }
+
+                clsIconKey.SetValue("", formattedPath, RegistryValueKind.String);
+            }
+
+            var oneDriveFolder = GetOneDrivePersonalFolderPath();
+            if (!string.IsNullOrWhiteSpace(oneDriveFolder) && Directory.Exists(oneDriveFolder))
+            {
+                try
+                {
+                    ApplyFolderIcon(oneDriveFolder, formattedPath);
+                }
+                catch
+                {
+                    // Best-effort sync with %OneDrive%\desktop.ini
+                }
+            }
+        }
+        else if (kind != SystemIconKind.RecycleBinEmpty && kind != SystemIconKind.RecycleBinFull)
+        {
+            // Also write to HKCU\Software\Classes\CLSID\{Clsid}\DefaultIcon so Windows 11 Navigation Pane updates via HKCR merge
+            using var clsIconKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\CLSID\{info.Clsid}\DefaultIcon", writable: true);
+            clsIconKey.SetValue("", formattedPath, RegistryValueKind.String);
         }
 
         // Mirror to Themes\DefaultIcon for Windows 10 / 11 themes persistence
@@ -377,6 +456,38 @@ public class ShellIconService
             }
         }
 
+        if (kind == SystemIconKind.OneDrivePersonal)
+        {
+            var nativeOneDriveIcon = ResolveNativeOneDriveDefaultIcon(info.Clsid);
+            using (var odClsidKey = Registry.CurrentUser.OpenSubKey($@"Software\Classes\CLSID\{info.Clsid}", writable: true))
+            {
+                if (odClsidKey != null)
+                {
+                    using var odDefaultIconKey = odClsidKey.CreateSubKey("DefaultIcon", writable: true);
+                    odDefaultIconKey.SetValue("", nativeOneDriveIcon, RegistryValueKind.String);
+                    odDefaultIconKey.DeleteValue(OneDriveBackupValueName, false);
+                }
+            }
+
+            var oneDriveFolder = GetOneDrivePersonalFolderPath();
+            if (!string.IsNullOrWhiteSpace(oneDriveFolder) && Directory.Exists(oneDriveFolder))
+            {
+                try
+                {
+                    ApplyFolderIcon(oneDriveFolder, nativeOneDriveIcon);
+                }
+                catch
+                {
+                    // Best-effort restore of %OneDrive%\desktop.ini
+                }
+            }
+        }
+        else if (kind != SystemIconKind.RecycleBinEmpty && kind != SystemIconKind.RecycleBinFull)
+        {
+            using var clsKey = Registry.CurrentUser.OpenSubKey($@"Software\Classes\CLSID\{info.Clsid}", writable: true);
+            clsKey?.DeleteSubKeyTree("DefaultIcon", false);
+        }
+
         // Clean Themes\DefaultIcon mirrors
         using (var themeKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\DefaultIcon", writable: true))
         {
@@ -411,10 +522,75 @@ public class ShellIconService
         if (!SystemIconClsids.TryGetValue(kind, out var info)) return null;
 
         var keyPath = $@"Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\{info.Clsid}\DefaultIcon";
-        using var key = Registry.CurrentUser.OpenSubKey(keyPath);
-        if (key == null) return null;
+        using (var key = Registry.CurrentUser.OpenSubKey(keyPath))
+        {
+            var val = key?.GetValue(info.ValueName) as string;
+            if (!string.IsNullOrWhiteSpace(val) && !IsDefaultSystemIconValue(kind, val))
+            {
+                return val;
+            }
+        }
 
-        return key.GetValue(info.ValueName) as string;
+        if (kind != SystemIconKind.RecycleBinEmpty && kind != SystemIconKind.RecycleBinFull)
+        {
+            using var clsKey = Registry.CurrentUser.OpenSubKey($@"Software\Classes\CLSID\{info.Clsid}\DefaultIcon");
+            var clsVal = clsKey?.GetValue("") as string;
+            if (!string.IsNullOrWhiteSpace(clsVal) && !IsDefaultSystemIconValue(kind, clsVal))
+            {
+                return clsVal;
+            }
+        }
+
+        return null;
+    }
+
+    private static string ResolveNativeOneDriveDefaultIcon(string oneDriveClsid)
+    {
+        using (var clsIconKey = Registry.CurrentUser.OpenSubKey($@"Software\Classes\CLSID\{oneDriveClsid}\DefaultIcon"))
+        {
+            var backup = clsIconKey?.GetValue(OneDriveBackupValueName) as string;
+            if (!string.IsNullOrWhiteSpace(backup))
+            {
+                return backup;
+            }
+        }
+
+        var localAppDataExe = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            @"Microsoft\OneDrive\OneDrive.exe");
+        if (File.Exists(localAppDataExe))
+        {
+            return $"{localAppDataExe},5";
+        }
+
+        var programFilesExe = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            @"Microsoft OneDrive\OneDrive.exe");
+        if (File.Exists(programFilesExe))
+        {
+            return $"{programFilesExe},5";
+        }
+
+        return @"%SystemRoot%\System32\imageres.dll,-1040";
+    }
+
+    private static string? GetOneDrivePersonalFolderPath()
+    {
+        var envConsumer = Environment.GetEnvironmentVariable("OneDriveConsumer");
+        if (!string.IsNullOrWhiteSpace(envConsumer) && Directory.Exists(envConsumer))
+        {
+            return envConsumer;
+        }
+
+        var envOneDrive = Environment.GetEnvironmentVariable("OneDrive");
+        if (!string.IsNullOrWhiteSpace(envOneDrive) && Directory.Exists(envOneDrive))
+        {
+            return envOneDrive;
+        }
+
+        using var regKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\OneDrive\Accounts\Personal");
+        var userFolder = regKey?.GetValue("UserFolder") as string;
+        return !string.IsNullOrWhiteSpace(userFolder) && Directory.Exists(userFolder) ? userFolder : null;
     }
 
     public virtual void SetSpecialFolderRegistryIcons(SpecialFolderKind kind, string iconPath)

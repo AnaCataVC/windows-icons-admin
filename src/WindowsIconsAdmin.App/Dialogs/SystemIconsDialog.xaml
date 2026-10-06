@@ -12,12 +12,13 @@
     <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel MinWidth="520" HorizontalAlignment="Stretch" Spacing="16" Padding="0,0,12,0">
             <!-- Selector de Sección / Pestaña -->
-            <RadioButtons x:Name="SectionSelector" SelectedIndex="0" MaxColumns="2" SelectionChanged="OnSectionSelectionChanged">
+            <RadioButtons x:Name="SectionSelector" SelectedIndex="0" MaxColumns="3" SelectionChanged="OnSectionSelectionChanged">
                 <RadioButtons.Items>
                     <RadioButton Content="Escritorio / Sistema" Tag="0" />
-                    <RadioButton Content="Carpetas Especiales" Tag="1" />
-                    <RadioButton Content="Predeterminados Globales" Tag="2" />
-                    <RadioButton Content="Por Extensión" Tag="3" />
+                    <RadioButton Content="Panel de Navegación" Tag="1" />
+                    <RadioButton Content="Carpetas Especiales" Tag="2" />
+                    <RadioButton Content="Predeterminados Globales" Tag="3" />
+                    <RadioButton Content="Por Extensión" Tag="4" />
                 </RadioButtons.Items>
             </RadioButtons>
 
@@ -82,7 +83,61 @@
                 </Grid>
             </StackPanel>
 
-            <!-- SECCIÓN 1: Carpetas Especiales (Known Folders) -->
+            <!-- SECCIÓN 1: Panel de Navegación (Explorador de Windows 11) -->
+            <StackPanel x:Name="NavigationPaneSection" Spacing="12" Visibility="Collapsed">
+                <TextBlock Text="Personaliza los nodos del panel izquierdo del Explorador de Windows 11 para tu usuario (HKCU):"
+                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+                <Grid RowSpacing="12" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Inicio (Home) -->
+                    <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Inicio (Home)" FontWeight="SemiBold" />
+                        <TextBlock x:Name="HomeStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeHomeClick" />
+                    <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreHomeClick" />
+
+                    <!-- Galería (Gallery) -->
+                    <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Galería (Gallery)" FontWeight="SemiBold" />
+                        <TextBlock x:Name="GalleryStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Grid.Column="1" Content="Cambiar..." Click="OnChangeGalleryClick" />
+                    <Button Grid.Row="1" Grid.Column="2" Content="Restaurar" Click="OnRestoreGalleryClick" />
+
+                    <!-- Linux (WSL) -->
+                    <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Linux (WSL)" FontWeight="SemiBold" />
+                        <TextBlock x:Name="LinuxWslStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button Grid.Row="2" Grid.Column="1" Content="Cambiar..." Click="OnChangeLinuxWslClick" />
+                    <Button Grid.Row="2" Grid.Column="2" Content="Restaurar" Click="OnRestoreLinuxWslClick" />
+
+                    <!-- OneDrive Personal -->
+                    <StackPanel Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="OneDrive Personal" FontWeight="SemiBold" />
+                        <TextBlock x:Name="OneDriveStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="⚠ Nota: OneDrive puede restablecer este icono automáticamente al actualizarse o iniciar sesión."
+                                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="#D97706" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Row="3" Grid.Column="1" Content="Cambiar..." Click="OnChangeOneDriveClick" VerticalAlignment="Center" />
+                    <Button Grid.Row="3" Grid.Column="2" Content="Restaurar" Click="OnRestoreOneDriveClick" VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+
+            <!-- SECCIÓN 2: Carpetas Especiales (Known Folders) -->
             <StackPanel x:Name="SpecialFoldersSection" Spacing="12" Visibility="Collapsed">
                 <TextBlock Text="Carpetas conocidas de tu perfil de Windows (KnownFolders):"
                            Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

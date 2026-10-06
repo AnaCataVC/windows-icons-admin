@@ -6,5 +6,9 @@ public enum SystemIconKind
     RecycleBinFull,
     ThisPC,
     Network,
-    UserFiles
+    UserFiles,
+    Home,
+    Gallery,
+    LinuxWsl,
+    OneDrivePersonal
 }
