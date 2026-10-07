@@ -253,3 +253,47 @@ To guarantee that Special Folders update across both filesystem views and Window
    - **Music:** `{3dfdf296-dbec-4fb4-81d1-6a3438bcf4de}`, `{1CF1260C-4DD0-4ebb-811F-33C572699FDE}`, `{4BD8D571-6D19-48D3-BE97-422220080E43}`
    - **Videos:** `{f86fa3ab-70d2-4fc7-9c99-fcbf05467f3a}`, `{A0953C92-50DC-43bf-BE83-3742FED03C9C}`, `{18989B1D-99B5-455B-841C-AB7C74E4DDFC}`
 
+---
+
+## 11. Persistent Settings & Clean Folder Storage Architecture
+
+### 11.1 The Repository Pollution Dilemma (Desktop.ini & Embedded Icons)
+In Windows, customizing a folder typically requires two elements:
+1. Setting the directory attribute to `FILE_ATTRIBUTE_READONLY` or `FILE_ATTRIBUTE_SYSTEM`.
+2. Placing a `desktop.ini` file containing `IconResource=<path>,0`.
+
+When `<path>` points to a relative file placed inside the target folder (`.\.folder_icon.ico`), the customization is fully portable across drive letters and network mounts. However, this creates severe friction in software engineering workflows:
+- Software development directories containing Git repositories (`.git/`) register `.folder_icon.ico` and `desktop.ini` as untracked files or unstaged modifications.
+- File synchronization engines (OneDrive, Dropbox, Google Drive) often refuse to sync files marked with hidden and system attributes, causing synchronization errors or reverting customizations.
+
+### 11.2 Central Cache Enforcement (`IconStorageMode.CentralCache`)
+To eliminate folder pollution, WindowsIconsAdmin establishes `IconStorageMode.CentralCache` as the mandatory default:
+- Instead of copying `.ico` files into customized folders, `IconStorageService` hashes the ICO payload with SHA-256 and writes it centrally under:
+  ```text
+  %LOCALAPPDATA%\WindowsIconsAdmin\Icons\<sha256-hash>.ico
+  ```
+- The folder's `desktop.ini` receives an absolute pointer:
+  ```ini
+  [.ShellClassInfo]
+  IconResource=%LOCALAPPDATA%\WindowsIconsAdmin\Icons\<sha256-hash>.ico,0
+  ```
+- The target folder remains completely free of loose icon assets, keeping Git status clean and avoiding file clutter.
+
+### 11.3 Gated Portable Mode (`IconStorageMode.PortableEmbedded`)
+Portable mode remains essential for removable USB thumb drives and external storage volumes that move between multiple physical machines.
+- To prevent accidental usage on local developer workstations, portable mode is gated behind `AppSettings.EnablePortableMode = false` by default.
+- When enabled via the `SettingsDialog`, the UI reveals an advanced radio option allowing users to choose between Central Cache and Portable Embedded.
+
+### 11.4 Atomic Configuration Persistence (`AppSettingsService`)
+The configuration store (`AppSettingsService`) persists application preferences to `%LOCALAPPDATA%\WindowsIconsAdmin\settings.json`:
+- **Thread Safety:** All reads and mutations are guarded by an internal synchronization object (`lock (_gate)`).
+- **Atomic File Swapping:** To prevent partially written files during abrupt OS shutdowns or process kills, updates write to a temporary file (`settings.json.<guid>.tmp`) and execute an atomic swap via `File.Replace`.
+- **Fault Recovery:** If `settings.json` is corrupted or unreadable, `AppSettingsService` automatically copies the damaged file to `settings.json.bak` and re-initializes safe defaults.
+
+### 11.5 Automated Global `.gitignore` Configuration
+Even with Central Cache, Windows Explorer requires the `desktop.ini` file within each customized directory. To prevent Git from detecting `desktop.ini` across all developer repositories on the system:
+- `SettingsDialog` features a one-click button that inspects `%USERPROFILE%\.gitignore_global`.
+- It appends entries for `desktop.ini`, `[Dd]esktop.ini`, `.folder_icon.ico`, and `Thumbs.db`.
+- It executes `git config --global core.excludesfile "~/.gitignore_global"`, establishing a seamless machine-wide ignore barrier.
+
+

@@ -11,6 +11,7 @@ using WindowsIconsAdmin.Core.Rules;
 using WindowsIconsAdmin.Core.Shell;
 using WindowsIconsAdmin.Core.Storage;
 using WindowsIconsAdmin.Core.Safety;
+using WindowsIconsAdmin.Core.Settings;
 using WindowsIconsAdmin_App.Dialogs;
 using WindowsIconsAdmin_App.Services;
 using WindowsIconsAdmin_App.ViewModels;
@@ -22,6 +23,7 @@ public sealed partial class MainPage : Page
     private readonly ObservableCollection<FolderItemViewModel> _folders = new();
     private readonly ShellIconService _shellService = new();
     private readonly IconStorageService _storageService = new();
+    private readonly AppSettingsService _settingsService;
     private readonly UndoStore _undoStore;
     private readonly RuleStore _ruleStore;
     private readonly List<FolderRule> _rules = new();
@@ -38,14 +40,34 @@ public sealed partial class MainPage : Page
         var appDataDir = Path.Combine(localAppData, "WindowsIconsAdmin");
         var historyFile = Path.Combine(appDataDir, "history.json");
         var rulesFile = Path.Combine(appDataDir, "rules.json");
+        var settingsFile = Path.Combine(appDataDir, "settings.json");
 
         _undoStore = new UndoStore(historyFile);
         _ruleStore = new RuleStore(rulesFile);
+        _settingsService = new AppSettingsService(settingsFile);
         _rules.AddRange(_ruleStore.GetAll());
 
         FoldersListView.ItemsSource = _folders;
         _folders.CollectionChanged += (_, _) => UpdateEmptyAndSelectionState();
         UpdateEmptyAndSelectionState();
+        ApplySettingsToStorageUI();
+    }
+
+    private void ApplySettingsToStorageUI()
+    {
+        var portableAllowed = _settingsService.Current.EnablePortableMode;
+        if (CentralOnlyStoragePanel != null)
+        {
+            CentralOnlyStoragePanel.Visibility = portableAllowed ? Visibility.Collapsed : Visibility.Visible;
+        }
+        if (AdvancedStorageSelectionPanel != null)
+        {
+            AdvancedStorageSelectionPanel.Visibility = portableAllowed ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (StorageModeRadioButtons != null)
+        {
+            StorageModeRadioButtons.SelectedIndex = 0; // Index 0 is CentralCache
+        }
     }
 
     private void UpdateEmptyAndSelectionState()
@@ -70,10 +92,20 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private IconStorageMode CurrentStorageMode =>
-        (StorageModeRadioButtons.SelectedItem as RadioButton)?.Tag?.ToString() == "Central"
-            ? IconStorageMode.CentralCache
-            : IconStorageMode.PortableEmbedded;
+    private IconStorageMode CurrentStorageMode
+    {
+        get
+        {
+            if (!_settingsService.Current.EnablePortableMode)
+            {
+                return IconStorageMode.CentralCache;
+            }
+
+            return (StorageModeRadioButtons?.SelectedItem as RadioButton)?.Tag?.ToString() == "Portable"
+                ? IconStorageMode.PortableEmbedded
+                : IconStorageMode.CentralCache;
+        }
+    }
 
     #region Drag and Drop & Multi-Folder Selection
 
@@ -709,6 +741,16 @@ public sealed partial class MainPage : Page
             XamlRoot = this.XamlRoot
         };
         await dialog.ShowAsync();
+    }
+
+    private async void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SettingsDialog(_settingsService, _storageService)
+        {
+            XamlRoot = this.XamlRoot
+        };
+        await dialog.ShowAsync();
+        ApplySettingsToStorageUI();
     }
 
     #endregion

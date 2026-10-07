@@ -26,8 +26,9 @@
             <AppBarButton Icon="Refresh" Label="Restaurar predeterminado" Click="OnRestoreDefaultClick" />
             <AppBarButton Icon="Undo" Label="Revertir último cambio" Click="OnUndoLastBatchClick" />
             <AppBarSeparator />
-            <AppBarButton Icon="Setting" Label="Reglas" Click="OnRulesClick" />
+            <AppBarButton Icon="Bullets" Label="Reglas" Click="OnRulesClick" />
             <AppBarButton Icon="Admin" Label="Iconos del sistema" Click="OnSystemIconsClick" />
+            <AppBarButton Icon="Setting" Label="Configuración" Click="OnSettingsClick" ToolTipService.ToolTip="Opciones y preferencias de almacenamiento" />
             <AppBarButton Icon="Delete" Label="Limpiar lista" Click="OnClearListClick" />
         </CommandBar>
 
@@ -149,21 +150,37 @@
 
                 <!-- Tarjeta: Modo de Almacenamiento -->
                 <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="16">
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="10">
                         <TextBlock Text="Ubicación del icono" FontWeight="SemiBold" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        <RadioButtons x:Name="StorageModeRadioButtons" SelectedIndex="0">
-                            <RadioButton Content="Modo Portable" Tag="Portable">
-                                <ToolTipService.ToolTip>
-                                    <ToolTip Content="Copia .folder_icon.ico oculto dentro de cada carpeta con ruta relativa. El icono sobrevive al mover o copiar a pendrives." />
-                                </ToolTipService.ToolTip>
-                            </RadioButton>
-                            <RadioButton Content="Caché Central en AppData" Tag="Central">
-                                <ToolTipService.ToolTip>
-                                    <ToolTip Content="Guarda los iconos en %LOCALAPPDATA% con ruta absoluta. No añade archivos a las carpetas." />
-                                </ToolTipService.ToolTip>
-                            </RadioButton>
-                        </RadioButtons>
-                        <TextBlock Text="Portable es ideal para pendrives y carpetas compartidas." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+                        <!-- Modo Central Predeterminado (cuando PortableMode no está activado en Configuración) -->
+                        <StackPanel x:Name="CentralOnlyStoragePanel" Spacing="6" Visibility="Visible">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE753;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="Caché Central en AppData" FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Los iconos se guardan de forma centralizada en tu AppData. Las carpetas permanecen 100% limpias sin archivos adicionales."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!-- Selector avanzado de modo (solo visible si EnablePortableMode está activado en Configuración) -->
+                        <StackPanel x:Name="AdvancedStorageSelectionPanel" Spacing="8" Visibility="Collapsed">
+                            <RadioButtons x:Name="StorageModeRadioButtons" SelectedIndex="0">
+                                <RadioButton Content="Caché Central en AppData (Recomendado)" Tag="Central">
+                                    <ToolTipService.ToolTip>
+                                        <ToolTip Content="Guarda los iconos en %LOCALAPPDATA% con ruta absoluta. No añade archivos a las carpetas." />
+                                    </ToolTipService.ToolTip>
+                                </RadioButton>
+                                <RadioButton Content="Modo Portable (.folder_icon.ico)" Tag="Portable">
+                                    <ToolTipService.ToolTip>
+                                        <ToolTip Content="Copia .folder_icon.ico oculto dentro de cada carpeta con ruta relativa. Ideal para pendrives USB." />
+                                    </ToolTipService.ToolTip>
+                                </RadioButton>
+                            </RadioButtons>
+                            <TextBlock Text="Caché Central mantiene tus carpetas y repositorios limpios." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                     </StackPanel>
