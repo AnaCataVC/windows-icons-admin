@@ -16,20 +16,20 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Barra de herramientas superior -->
+        <!-- Barra de acciones frecuentes; las herramientas secundarias viven en un solo menú. -->
         <CommandBar Grid.Row="0" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" BorderThickness="0">
             <AppBarButton Icon="Folder" Label="Agregar carpetas" Click="OnAddFoldersClick" ToolTipService.ToolTip="Selecciona una o varias carpetas a la vez (Ctrl o Shift + clic)" />
-            <AppBarButton Icon="NewFolder" Label="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" ToolTipService.ToolTip="Elige una carpeta raíz y agrega todas sus subcarpetas directas" />
-            <AppBarButton Icon="Pictures" Label="Seleccionar icono" Click="OnSelectIconClick" />
             <AppBarSeparator />
-            <AppBarButton Icon="Accept" Label="Aplicar icono" Click="OnApplyIconClick" />
-            <AppBarButton Icon="Refresh" Label="Restaurar predeterminado" Click="OnRestoreDefaultClick" />
-            <AppBarButton Icon="Undo" Label="Revertir último cambio" Click="OnUndoLastBatchClick" />
-            <AppBarSeparator />
-            <AppBarButton Icon="Bullets" Label="Reglas" Click="OnRulesClick" />
-            <AppBarButton Icon="Admin" Label="Iconos del sistema" Click="OnSystemIconsClick" />
-            <AppBarButton Icon="Setting" Label="Configuración" Click="OnSettingsClick" ToolTipService.ToolTip="Opciones y preferencias de almacenamiento" />
-            <AppBarButton Icon="Delete" Label="Limpiar lista" Click="OnClearListClick" />
+            <AppBarButton Icon="Refresh" Label="Restaurar" Click="OnRestoreDefaultClick" ToolTipService.ToolTip="Restaurar el icono predeterminado de las carpetas marcadas" />
+            <AppBarButton Icon="Undo" Label="Deshacer" Click="OnUndoLastBatchClick" ToolTipService.ToolTip="Revertir el último cambio" />
+
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Label="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" ToolTipService.ToolTip="Elige una carpeta raíz y agrega sus subcarpetas directas" />
+                <AppBarButton Label="Reglas" Click="OnRulesClick" />
+                <AppBarButton Label="Iconos del sistema" Click="OnSystemIconsClick" />
+                <AppBarButton Label="Configuración" Click="OnSettingsClick" />
+                <AppBarButton Label="Limpiar lista" Click="OnClearListClick" />
+            </CommandBar.SecondaryCommands>
         </CommandBar>
 
         <!-- Contenido principal: Lista a la izquierda, Panel de control a la derecha -->
@@ -80,12 +80,8 @@
                     <!-- Mensaje si lista vacía -->
                     <StackPanel x:Name="EmptyListPlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                         <FontIcon Glyph="&#xED25;" FontSize="48" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                        <TextBlock Text="Arrastra una o varias carpetas aquí desde el Explorador" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                        <TextBlock Text="o usa 'Agregar carpetas' (soporta selección múltiple con Ctrl/Shift) y 'Agregar subcarpetas de...'." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
-                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                            <Button Content="Agregar carpetas..." Click="OnAddFoldersClick" Style="{StaticResource AccentButtonStyle}" />
-                            <Button Content="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" />
-                        </StackPanel>
+                        <TextBlock Text="Agrega las carpetas que quieres personalizar" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="Arrástralas desde el Explorador o usa Agregar carpetas en la barra superior." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
                     </StackPanel>
 
                     <!-- Lista de carpetas -->
