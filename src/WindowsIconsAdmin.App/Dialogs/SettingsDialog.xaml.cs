@@ -42,12 +42,11 @@ public sealed partial class SettingsDialog : ContentDialog
         }
         catch (Exception ex)
         {
-            GitIgnoreStatusTextBlock.Text = $"Error al abrir carpeta: {ex.Message}";
-            GitIgnoreStatusTextBlock.Visibility = Visibility.Visible;
+            ShowInfo($"Error al abrir la carpeta de caché: {ex.Message}", InfoBarSeverity.Error);
         }
     }
 
-    private void OnConfigureGitIgnoreClick(object sender, RoutedEventArgs e)
+    private async void OnConfigureGitIgnoreClick(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -63,7 +62,7 @@ public sealed partial class SettingsDialog : ContentDialog
             };
 
             var existingLines = File.Exists(gitIgnoreGlobalPath)
-                ? File.ReadAllLines(gitIgnoreGlobalPath).ToList()
+                ? (await File.ReadAllLinesAsync(gitIgnoreGlobalPath)).ToList()
                 : new List<string>();
 
             var addedCount = 0;
@@ -78,26 +77,29 @@ public sealed partial class SettingsDialog : ContentDialog
 
             if (addedCount > 0 || !File.Exists(gitIgnoreGlobalPath))
             {
-                File.WriteAllLines(gitIgnoreGlobalPath, existingLines);
+                await File.WriteAllLinesAsync(gitIgnoreGlobalPath, existingLines);
             }
 
             // Set git config --global core.excludesfile "~/.gitignore_global"
-            try
+            await Task.Run(() =>
             {
-                var psi = new ProcessStartInfo
+                try
                 {
-                    FileName = "git",
-                    Arguments = $"config --global core.excludesfile \"{gitIgnoreGlobalPath.Replace('\\', '/')}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var proc = Process.Start(psi);
-                proc?.WaitForExit(3000);
-            }
-            catch
-            {
-                // Best-effort git CLI invocation
-            }
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "git",
+                        Arguments = $"config --global core.excludesfile \"{gitIgnoreGlobalPath.Replace('\\', '/')}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc = Process.Start(psi);
+                    proc?.WaitForExit(3000);
+                }
+                catch
+                {
+                    // Best-effort git CLI invocation
+                }
+            });
 
             GitIgnoreStatusTextBlock.Text = $"✓ 'desktop.ini' y '.folder_icon.ico' configurados en {gitIgnoreGlobalPath}";
             GitIgnoreStatusTextBlock.Visibility = Visibility.Visible;
@@ -105,8 +107,14 @@ public sealed partial class SettingsDialog : ContentDialog
         }
         catch (Exception ex)
         {
-            GitIgnoreStatusTextBlock.Text = $"Error: {ex.Message}";
-            GitIgnoreStatusTextBlock.Visibility = Visibility.Visible;
+            ShowInfo($"Error al configurar Git: {ex.Message}", InfoBarSeverity.Error);
         }
+    }
+
+    private void ShowInfo(string message, InfoBarSeverity severity)
+    {
+        SettingsInfoBar.Message = message;
+        SettingsInfoBar.Severity = severity;
+        SettingsInfoBar.IsOpen = true;
     }
 }

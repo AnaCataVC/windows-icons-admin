@@ -117,6 +117,7 @@ public sealed partial class RulesDialog : ContentDialog
 
     private string? _editingRuleId;
     private bool _suppressFormEvents;
+    private bool _isFormDirty;
 
     public RulesDialog(
         IEnumerable<FolderRule> currentRules,
@@ -327,6 +328,7 @@ public sealed partial class RulesDialog : ContentDialog
 
     private void OnDeleteSelectedRuleClick(object sender, RoutedEventArgs e)
     {
+        DeleteSelectedRuleFlyout?.Hide();
         if (RulesListView.SelectedItem is RuleDisplayItem selected)
         {
             DeleteRuleItem(selected);
@@ -343,6 +345,7 @@ public sealed partial class RulesDialog : ContentDialog
 
     private void DeleteRuleItem(RuleDisplayItem item)
     {
+        DeleteSelectedRuleFlyout?.Hide();
         var wasEditingThis = _editingRuleId == item.Rule.Id;
         _displayRules.Remove(item);
         if (wasEditingThis)
@@ -358,12 +361,18 @@ public sealed partial class RulesDialog : ContentDialog
 
     private void LoadRuleIntoEditor(FolderRule rule)
     {
+        if (_isFormDirty && _editingRuleId != null && _editingRuleId != rule.Id)
+        {
+            ShowDialogInfo("Nota: Se cargó la regla seleccionada y se descartaron los cambios no guardados del formulario.", InfoBarSeverity.Informational);
+        }
+
         _suppressFormEvents = true;
         try
         {
             _editingRuleId = rule.Id;
             EditorTitleText.Text = $"Editando regla: {rule.Name}";
             SaveRuleButton.Content = "Actualizar regla";
+            CancelEditButton.Content = "Cancelar edición";
             RuleNameBox.Text = rule.Name;
             PatternBox.Text = rule.Pattern;
             CaseSensitiveBox.IsChecked = rule.CaseSensitive;
@@ -382,6 +391,7 @@ public sealed partial class RulesDialog : ContentDialog
             };
 
             _ = LoadIconPreviewAsync(rule.IconPath);
+            _isFormDirty = false;
         }
         finally
         {
@@ -401,6 +411,7 @@ public sealed partial class RulesDialog : ContentDialog
             RulesListView.SelectedIndex = -1;
             EditorTitleText.Text = "Crear nueva regla";
             SaveRuleButton.Content = "Guardar regla";
+            CancelEditButton.Content = "Limpiar formulario";
             RuleNameBox.Text = string.Empty;
             PatternBox.Text = string.Empty;
             CaseSensitiveBox.IsChecked = false;
@@ -408,6 +419,7 @@ public sealed partial class RulesDialog : ContentDialog
             TargetBox.SelectedIndex = 0;
             ConditionBox.SelectedIndex = 0;
             RuleIconPreview.Source = null;
+            _isFormDirty = false;
         }
         finally
         {
@@ -491,6 +503,7 @@ public sealed partial class RulesDialog : ContentDialog
     private void OnFormSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressFormEvents) return;
+        _isFormDirty = true;
         UpdateConditionHintAndPlaceholder();
         UpdateLivePreview();
     }
@@ -498,12 +511,14 @@ public sealed partial class RulesDialog : ContentDialog
     private void OnFormFieldChanged(object sender, TextChangedEventArgs e)
     {
         if (_suppressFormEvents) return;
+        _isFormDirty = true;
         UpdateLivePreview();
     }
 
     private void OnCaseSensitiveClick(object sender, RoutedEventArgs e)
     {
         if (_suppressFormEvents) return;
+        _isFormDirty = true;
         UpdateLivePreview();
     }
 

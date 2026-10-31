@@ -5,241 +5,272 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Title="Iconos del Sistema y Predeterminados"
-    PrimaryButtonText="Cerrar"
-    DefaultButton="Primary"
+    CloseButtonText="Cerrar"
+    DefaultButton="Close"
     mc:Ignorable="d">
 
-    <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel MinWidth="520" HorizontalAlignment="Stretch" Spacing="16" Padding="0,0,12,0">
-            <!-- Selector de Sección / Pestaña -->
-            <RadioButtons x:Name="SectionSelector" SelectedIndex="0" MaxColumns="3" SelectionChanged="OnSectionSelectionChanged">
-                <RadioButtons.Items>
-                    <RadioButton Content="Escritorio / Sistema" Tag="0" />
-                    <RadioButton Content="Panel de Navegación" Tag="1" />
-                    <RadioButton Content="Carpetas Especiales" Tag="2" />
-                    <RadioButton Content="Predeterminados Globales" Tag="3" />
-                    <RadioButton Content="Por Extensión" Tag="4" />
-                </RadioButtons.Items>
-            </RadioButtons>
+    <Grid Width="780" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-            <!-- SECCIÓN 0: Iconos de Escritorio / Sistema -->
-            <StackPanel x:Name="DesktopSection" Spacing="12">
-                <TextBlock Text="Personaliza los iconos de accesos del sistema para tu usuario (HKCU):"
-                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <ScrollViewer Grid.Row="0" MaxHeight="520" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel HorizontalAlignment="Stretch" Spacing="16" Padding="0,0,12,0">
+                <!-- Selector de Sección / Pestaña -->
+                <RadioButtons x:Name="SectionSelector" SelectedIndex="0" MaxColumns="3" SelectionChanged="OnSectionSelectionChanged">
+                    <RadioButtons.Items>
+                        <RadioButton Content="Escritorio / Sistema" Tag="0" />
+                        <RadioButton Content="Panel de Navegación" Tag="1" />
+                        <RadioButton Content="Carpetas Especiales" Tag="2" />
+                        <RadioButton Content="Predeterminados Globales" Tag="3" />
+                        <RadioButton Content="Por Extensión" Tag="4" />
+                    </RadioButtons.Items>
+                </RadioButtons>
 
-                <Grid RowSpacing="12" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                <!-- SECCIÓN 0: Iconos de Escritorio / Sistema -->
+                <StackPanel x:Name="DesktopSection" Spacing="12">
+                    <TextBlock Text="Personaliza los iconos de accesos del sistema para tu cuenta de usuario actual:"
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                    <!-- Papelera vacía -->
-                    <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Papelera de reciclaje (Vacía)" FontWeight="SemiBold" />
-                        <TextBlock x:Name="RecycleEmptyStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeRecycleEmptyClick" />
-                    <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreRecycleEmptyClick" />
-
-                    <!-- Papelera llena -->
-                    <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Papelera de reciclaje (Llena)" FontWeight="SemiBold" />
-                        <TextBlock x:Name="RecycleFullStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="1" Grid.Column="1" Content="Cambiar..." Click="OnChangeRecycleFullClick" />
-                    <Button Grid.Row="1" Grid.Column="2" Content="Restaurar" Click="OnRestoreRecycleFullClick" />
-
-                    <!-- Este equipo -->
-                    <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Este equipo" FontWeight="SemiBold" />
-                        <TextBlock x:Name="ThisPcStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="2" Grid.Column="1" Content="Cambiar..." Click="OnChangeThisPcClick" />
-                    <Button Grid.Row="2" Grid.Column="2" Content="Restaurar" Click="OnRestoreThisPcClick" />
-
-                    <!-- Red -->
-                    <StackPanel Grid.Row="3" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Red" FontWeight="SemiBold" />
-                        <TextBlock x:Name="NetworkStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="3" Grid.Column="1" Content="Cambiar..." Click="OnChangeNetworkClick" />
-                    <Button Grid.Row="3" Grid.Column="2" Content="Restaurar" Click="OnRestoreNetworkClick" />
-
-                    <!-- Archivos de usuario -->
-                    <StackPanel Grid.Row="4" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Archivos de usuario" FontWeight="SemiBold" />
-                        <TextBlock x:Name="UserFilesStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="4" Grid.Column="1" Content="Cambiar..." Click="OnChangeUserFilesClick" />
-                    <Button Grid.Row="4" Grid.Column="2" Content="Restaurar" Click="OnRestoreUserFilesClick" />
-                </Grid>
-            </StackPanel>
-
-            <!-- SECCIÓN 1: Panel de Navegación (Explorador de Windows 11) -->
-            <StackPanel x:Name="NavigationPaneSection" Spacing="12" Visibility="Collapsed">
-                <TextBlock Text="Personaliza los nodos del panel izquierdo del Explorador de Windows 11 para tu usuario (HKCU):"
-                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-
-                <Grid RowSpacing="12" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <!-- Inicio (Home) -->
-                    <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Inicio (Home)" FontWeight="SemiBold" />
-                        <TextBlock x:Name="HomeStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeHomeClick" />
-                    <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreHomeClick" />
-
-                    <!-- Galería (Gallery) -->
-                    <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Galería (Gallery)" FontWeight="SemiBold" />
-                        <TextBlock x:Name="GalleryStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="1" Grid.Column="1" Content="Cambiar..." Click="OnChangeGalleryClick" />
-                    <Button Grid.Row="1" Grid.Column="2" Content="Restaurar" Click="OnRestoreGalleryClick" />
-
-                    <!-- Linux (WSL) -->
-                    <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Linux (WSL)" FontWeight="SemiBold" />
-                        <TextBlock x:Name="LinuxWslStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <Button Grid.Row="2" Grid.Column="1" Content="Cambiar..." Click="OnChangeLinuxWslClick" />
-                    <Button Grid.Row="2" Grid.Column="2" Content="Restaurar" Click="OnRestoreLinuxWslClick" />
-
-                    <!-- OneDrive Personal -->
-                    <StackPanel Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="OneDrive Personal" FontWeight="SemiBold" />
-                        <TextBlock x:Name="OneDriveStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="⚠ Nota: OneDrive puede restablecer este icono automáticamente al actualizarse o iniciar sesión."
-                                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="#D97706" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <Button Grid.Row="3" Grid.Column="1" Content="Cambiar..." Click="OnChangeOneDriveClick" VerticalAlignment="Center" />
-                    <Button Grid.Row="3" Grid.Column="2" Content="Restaurar" Click="OnRestoreOneDriveClick" VerticalAlignment="Center" />
-                </Grid>
-            </StackPanel>
-
-            <!-- SECCIÓN 2: Carpetas Especiales (Known Folders) -->
-            <StackPanel x:Name="SpecialFoldersSection" Spacing="12" Visibility="Collapsed">
-                <TextBlock Text="Carpetas conocidas de tu perfil de Windows (KnownFolders):"
-                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-
-                <StackPanel x:Name="SpecialFoldersContainer" Spacing="10" />
-            </StackPanel>
-
-            <!-- SECCIÓN 2: Predeterminados Globales de Windows -->
-            <StackPanel x:Name="GlobalDefaultsSection" Spacing="14" Visibility="Collapsed">
-                <TextBlock Text="Iconos predeterminados del Explorador de Windows cuando un elemento no tiene personalización propia:"
-                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-
-                <!-- Carpeta Predeterminada -->
-                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="12">
-                    <Grid RowSpacing="8" ColumnSpacing="12">
+                    <Grid RowSpacing="12" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="2*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="Icono por defecto de Carpetas" FontWeight="SemiBold" />
-                            <TextBlock x:Name="DefaultFolderStatus" Text="Predeterminado de Windows (Amarillo)" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                        <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeDefaultFolderClick" />
-                        <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreDefaultFolderClick" />
-
-                        <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFolderCheckbox" IsChecked="True" Content="Aplicar en HKLM Shell Icons (Recomendado para Windows 11 - solicita UAC)" FontSize="12" />
-                    </Grid>
-                </Border>
-
-                <!-- Archivo Genérico Desconocido -->
-                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="12">
-                    <Grid RowSpacing="8" ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
+                        <!-- Papelera vacía -->
                         <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="Icono por defecto de Archivos Desconocidos" FontWeight="SemiBold" />
-                            <TextBlock x:Name="DefaultFileStatus" Text="Predeterminado de Windows (Página en blanco)" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="Papelera de reciclaje (Vacía)" FontWeight="SemiBold" />
+                            <TextBlock x:Name="RecycleEmptyStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                        <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeDefaultFileClick" />
-                        <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreDefaultFileClick" />
+                        <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeRecycleEmptyClick" />
+                        <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreRecycleEmptyClick" />
 
-                        <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFileCheckbox" IsChecked="True" Content="Aplicar en HKLM Shell Icons (Recomendado para Windows 11 - solicita UAC)" FontSize="12" />
+                        <!-- Papelera llena -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Papelera de reciclaje (Llena)" FontWeight="SemiBold" />
+                            <TextBlock x:Name="RecycleFullStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="1" Grid.Column="1" Content="Cambiar..." Click="OnChangeRecycleFullClick" />
+                        <Button Grid.Row="1" Grid.Column="2" Content="Restaurar" Click="OnRestoreRecycleFullClick" />
+
+                        <!-- Este Equipo -->
+                        <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Este Equipo (Mi PC)" FontWeight="SemiBold" />
+                            <TextBlock x:Name="ThisPcStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="2" Grid.Column="1" Content="Cambiar..." Click="OnChangeThisPcClick" />
+                        <Button Grid.Row="2" Grid.Column="2" Content="Restaurar" Click="OnRestoreThisPcClick" />
+
+                        <!-- Red -->
+                        <StackPanel Grid.Row="3" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Red de Windows" FontWeight="SemiBold" />
+                            <TextBlock x:Name="NetworkStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="3" Grid.Column="1" Content="Cambiar..." Click="OnChangeNetworkClick" />
+                        <Button Grid.Row="3" Grid.Column="2" Content="Restaurar" Click="OnRestoreNetworkClick" />
+
+                        <!-- Archivos de Usuario -->
+                        <StackPanel Grid.Row="4" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Carpeta de Usuario Personal" FontWeight="SemiBold" />
+                            <TextBlock x:Name="UserFilesStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="4" Grid.Column="1" Content="Cambiar..." Click="OnChangeUserFilesClick" />
+                        <Button Grid.Row="4" Grid.Column="2" Content="Restaurar" Click="OnRestoreUserFilesClick" />
                     </Grid>
-                </Border>
-
-                <TextBlock Text="Nota: En Windows 11 el Explorador lee 'Shell Icons' desde HKLM. Al cambiar el icono por defecto de carpetas o archivos, puede ser necesario pulsar 'Reiniciar Explorador' abajo para recargar la caché en memoria."
-                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <!-- SECCIÓN 3: Por Extensión de Archivo -->
-            <StackPanel x:Name="FileExtensionsSection" Spacing="14" Visibility="Collapsed">
-                <TextBlock Text="Asigna un icono personalizado a cualquier extensión de archivo para tu usuario actual (HKCU):"
-                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox x:Name="ExtensionInputTextBox" PlaceholderText="Ejemplo: .txt, .pdf, .log, .custom" KeyDown="OnExtensionInputKeyDown" />
-                    <Button Grid.Column="1" Content="Consultar" Click="OnCheckExtensionClick" />
-                </Grid>
-
-                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="12">
-                    <StackPanel Spacing="10">
-                        <TextBlock x:Name="ExtensionDetailsTitle" Text="Detalles de la extensión: Ninguna seleccionada" FontWeight="SemiBold" />
-                        <TextBlock x:Name="ExtensionProgIdLabel" Text="ProgID del sistema: -" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock x:Name="ExtensionIconStatusLabel" Text="Icono actual: Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-
-                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                            <Button Content="Asignar Icono..." Click="OnChangeExtensionIconClick" />
-                            <Button Content="Restaurar Extensión" Click="OnRestoreExtensionIconClick" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <!-- Separador y Acciones Globales -->
-            <Border BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="0,12,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <Button Content="Reiniciar Explorador (Refrescar caché)" Click="OnRestartExplorerClick" />
-                    <Button Content="Restaurar todo a fábrica (Emergencia)" Click="OnRestoreAllSystemIconsClick" />
                 </StackPanel>
-            </Border>
 
-            <!-- Barra de estado / notificación -->
-            <InfoBar x:Name="SystemInfoBar" IsOpen="False" Severity="Success" />
-        </StackPanel>
-    </ScrollViewer>
+                <!-- SECCIÓN 1: Panel de Navegación (Explorador de Windows 11) -->
+                <StackPanel x:Name="NavigationPaneSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock Text="Personaliza los accesos del panel lateral del Explorador de Windows 11 para tu cuenta de usuario:"
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+                    <Grid RowSpacing="12" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Inicio (Home) -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Inicio (Home)" FontWeight="SemiBold" />
+                            <TextBlock x:Name="HomeStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeHomeClick" />
+                        <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreHomeClick" />
+
+                        <!-- Galería (Gallery) -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Galería (Gallery)" FontWeight="SemiBold" />
+                            <TextBlock x:Name="GalleryStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="1" Grid.Column="1" Content="Cambiar..." Click="OnChangeGalleryClick" />
+                        <Button Grid.Row="1" Grid.Column="2" Content="Restaurar" Click="OnRestoreGalleryClick" />
+
+                        <!-- Linux (WSL) -->
+                        <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Linux (WSL)" FontWeight="SemiBold" />
+                            <TextBlock x:Name="LinuxWslStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Row="2" Grid.Column="1" Content="Cambiar..." Click="OnChangeLinuxWslClick" />
+                        <Button Grid.Row="2" Grid.Column="2" Content="Restaurar" Click="OnRestoreLinuxWslClick" />
+
+                        <!-- OneDrive Personal -->
+                        <StackPanel Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="OneDrive Personal" FontWeight="SemiBold" />
+                            <TextBlock x:Name="OneDriveStatus" Text="Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="Nota: OneDrive puede restablecer este icono automáticamente al actualizarse o iniciar sesión."
+                                       Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCautionBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Row="3" Grid.Column="1" Content="Cambiar..." Click="OnChangeOneDriveClick" VerticalAlignment="Center" />
+                        <Button Grid.Row="3" Grid.Column="2" Content="Restaurar" Click="OnRestoreOneDriveClick" VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+
+                <!-- SECCIÓN 2: Carpetas Especiales (Known Folders) -->
+                <StackPanel x:Name="SpecialFoldersSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock Text="Carpetas de tu perfil personal de Windows:"
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <StackPanel x:Name="SpecialFoldersContainer" Spacing="10" />
+                </StackPanel>
+
+                <!-- SECCIÓN 3: Predeterminados Globales de Windows -->
+                <StackPanel x:Name="GlobalDefaultsSection" Spacing="14" Visibility="Collapsed">
+                    <TextBlock Text="Iconos predeterminados del Explorador de Windows cuando un elemento no tiene personalización propia:"
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+                    <!-- Carpeta Predeterminada -->
+                    <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="{ThemeResource OverlayCornerRadius}" Padding="12">
+                        <Grid RowSpacing="8" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="Icono por defecto de Carpetas" FontWeight="SemiBold" />
+                                <TextBlock x:Name="DefaultFolderStatus" Text="Predeterminado de Windows (Amarillo)" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeDefaultFolderClick" />
+                            <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreDefaultFolderClick" />
+
+                            <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFolderCheckbox" IsChecked="True" Checked="OnMachineWideCheckboxChanged" Unchecked="OnMachineWideCheckboxChanged">
+                                <TextBlock Text="Aplicar a todo el equipo en HKLM (Recomendado para Windows 11 - solicita permisos UAC)" Style="{StaticResource CaptionTextBlockStyle}" />
+                            </CheckBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Archivo Genérico Desconocido -->
+                    <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="{ThemeResource OverlayCornerRadius}" Padding="12">
+                        <Grid RowSpacing="8" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="Icono por defecto de Archivos Desconocidos" FontWeight="SemiBold" />
+                                <TextBlock x:Name="DefaultFileStatus" Text="Predeterminado de Windows (Página en blanco)" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <Button Grid.Row="0" Grid.Column="1" Content="Cambiar..." Click="OnChangeDefaultFileClick" />
+                            <Button Grid.Row="0" Grid.Column="2" Content="Restaurar" Click="OnRestoreDefaultFileClick" />
+
+                            <CheckBox Grid.Row="1" Grid.ColumnSpan="3" x:Name="MachineWideFileCheckbox" IsChecked="True" Checked="OnMachineWideCheckboxChanged" Unchecked="OnMachineWideCheckboxChanged">
+                                <TextBlock Text="Aplicar a todo el equipo en HKLM (Recomendado para Windows 11 - solicita permisos UAC)" Style="{StaticResource CaptionTextBlockStyle}" />
+                            </CheckBox>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="Nota: En Windows 11 el Explorador lee 'Shell Icons' desde el registro de la máquina. Al cambiar el icono por defecto de carpetas o archivos, puede ser necesario pulsar 'Reiniciar Explorador' abajo para recargar la caché en memoria."
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!-- SECCIÓN 4: Por Extensión de Archivo -->
+                <StackPanel x:Name="FileExtensionsSection" Spacing="14" Visibility="Collapsed">
+                    <TextBlock Text="Asigna un icono personalizado a cualquier extensión de archivo para tu cuenta de usuario actual:"
+                               Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ExtensionInputTextBox" PlaceholderText="Ejemplo: .txt, .pdf, .log, .custom" KeyDown="OnExtensionInputKeyDown" />
+                        <Button Grid.Column="1" Content="Consultar" Click="OnCheckExtensionClick" />
+                    </Grid>
+
+                    <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="{ThemeResource OverlayCornerRadius}" Padding="12">
+                        <StackPanel Spacing="10">
+                            <TextBlock x:Name="ExtensionDetailsTitle" Text="Detalles de la extensión: Ninguna seleccionada" FontWeight="SemiBold" />
+                            <TextBlock x:Name="ExtensionProgIdLabel" Text="Identificador de sistema: -" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBlock x:Name="ExtensionIconStatusLabel" Text="Icono actual: Predeterminado" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <Button Content="Asignar Icono..." Click="OnChangeExtensionIconClick" />
+                                <Button Content="Restaurar Extensión" Click="OnRestoreExtensionIconClick" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Separador y Acciones Globales -->
+                <Border BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="0,12,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Reiniciar Explorador (Refrescar caché)">
+                            <Button.Flyout>
+                                <Flyout x:Name="RestartExplorerFlyout">
+                                    <StackPanel Spacing="8" MaxWidth="280">
+                                        <TextBlock Text="¿Reiniciar el Explorador?" FontWeight="SemiBold" />
+                                        <TextBlock Text="Se cerrarán las ventanas abiertas del Explorador de Windows para forzar el refresco de iconos." Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+                                        <Button Content="Sí, reiniciar" Click="OnConfirmRestartExplorerClick" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button Content="Restaurar todo a fábrica (Emergencia)" Foreground="{ThemeResource SystemFillColorCriticalBrush}">
+                            <Button.Flyout>
+                                <Flyout x:Name="RestoreAllFlyout">
+                                    <StackPanel Spacing="8" MaxWidth="300">
+                                        <TextBlock Text="¿Restaurar todos los iconos del sistema?" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                        <TextBlock Text="Se restablecerán todos los accesos del sistema, carpetas de perfil y valores predeterminados al estado original de Windows." Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+                                        <Button Content="Confirmar y restaurar" Click="OnConfirmRestoreAllSystemIconsClick" Foreground="{ThemeResource SystemFillColorCriticalBrush}" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Barra de estado / notificación siempre visible al pie -->
+        <InfoBar Grid.Row="1" x:Name="SystemInfoBar" IsOpen="False" Severity="Success" />
+    </Grid>
 </ContentDialog>

@@ -226,7 +226,7 @@ public sealed partial class SystemIconsDialog : ContentDialog
                 {
                     Text = "☁ Sincronizada con Nube (OneDrive/Dropbox)",
                     Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
-                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 217, 119, 6))
+                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"]
                 };
                 infoStack.Children.Add(cloudBadge);
             }
@@ -443,12 +443,18 @@ public sealed partial class SystemIconsDialog : ContentDialog
         }
     }
 
+    private void OnMachineWideCheckboxChanged(object sender, RoutedEventArgs e)
+    {
+        RefreshAllStatuses();
+    }
+
     #endregion
 
     #region ACCIÓN GLOBAL DE EMERGENCIA Y REFRESCO
 
-    private void OnRestartExplorerClick(object sender, RoutedEventArgs e)
+    private void OnConfirmRestartExplorerClick(object sender, RoutedEventArgs e)
     {
+        RestartExplorerFlyout?.Hide();
         try
         {
             _shellService.RefreshExplorerIconCache(restartExplorer: true);
@@ -460,8 +466,9 @@ public sealed partial class SystemIconsDialog : ContentDialog
         }
     }
 
-    private void OnRestoreAllSystemIconsClick(object sender, RoutedEventArgs e)
+    private void OnConfirmRestoreAllSystemIconsClick(object sender, RoutedEventArgs e)
     {
+        RestoreAllFlyout?.Hide();
         try
         {
             _shellService.RestoreAllSystemAndDefaultIcons();

@@ -26,7 +26,7 @@
                 Background="{ThemeResource LayerFillColorAltBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
-                CornerRadius="6"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
                 Padding="12,8">
             <TextBlock Text="Las reglas asignan iconos automáticamente a tus carpetas según su nombre o ruta. Se evalúan de arriba hacia abajo y la primera regla activa que coincida se aplica. Tus reglas se guardan automáticamente."
                        Style="{StaticResource CaptionTextBlockStyle}"
@@ -46,7 +46,7 @@
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
-                    CornerRadius="8"
+                    CornerRadius="{ThemeResource OverlayCornerRadius}"
                     Padding="12">
                 <Grid RowSpacing="8">
                     <Grid.RowDefinitions>
@@ -64,17 +64,40 @@
                                    Text="Reglas guardadas (0)"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
-                        <Button Grid.Column="1"
-                                Content="+ Nueva regla"
-                                Click="OnNewRuleClick" />
+                        <Button Grid.Column="1" Click="OnNewRuleClick">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE710;" FontSize="12" />
+                                <TextBlock Text="Nueva regla" />
+                            </StackPanel>
+                        </Button>
                     </Grid>
 
                     <!-- Barra de ordenamiento y acciones sobre la regla seleccionada -->
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
-                        <Button x:Name="MoveUpButton" Content="▲ Subir" Click="OnMoveUpClick" IsEnabled="False" ToolTipService.ToolTip="Mayor prioridad (se evalúa antes)" />
-                        <Button x:Name="MoveDownButton" Content="▼ Bajar" Click="OnMoveDownClick" IsEnabled="False" ToolTipService.ToolTip="Menor prioridad (se evalúa después)" />
+                        <Button x:Name="MoveUpButton" Click="OnMoveUpClick" IsEnabled="False" ToolTipService.ToolTip="Mayor prioridad (se evalúa antes)">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE74A;" FontSize="10" />
+                                <TextBlock Text="Subir" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MoveDownButton" Click="OnMoveDownClick" IsEnabled="False" ToolTipService.ToolTip="Menor prioridad (se evalúa después)">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE74B;" FontSize="10" />
+                                <TextBlock Text="Bajar" />
+                            </StackPanel>
+                        </Button>
                         <Button x:Name="DuplicateRuleButton" Content="Duplicar" Click="OnDuplicateRuleClick" IsEnabled="False" />
-                        <Button x:Name="DeleteRuleButton" Content="Eliminar" Click="OnDeleteSelectedRuleClick" IsEnabled="False" />
+                        <Button x:Name="DeleteRuleButton" Content="Eliminar" IsEnabled="False" Foreground="{ThemeResource SystemFillColorCriticalBrush}">
+                            <Button.Flyout>
+                                <Flyout x:Name="DeleteSelectedRuleFlyout">
+                                    <StackPanel Spacing="8" MaxWidth="240">
+                                        <TextBlock Text="¿Eliminar regla seleccionada?" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                        <TextBlock Text="Esta regla se borrará de forma permanente." Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+                                        <Button Content="Eliminar definitivamente" Click="OnDeleteSelectedRuleClick" Foreground="{ThemeResource SystemFillColorCriticalBrush}" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
                     </StackPanel>
 
                     <!-- Estado vacío de reglas -->
@@ -82,12 +105,13 @@
                                 Grid.Row="2"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
-                                Spacing="6"
+                                Spacing="8"
                                 Padding="12">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         <TextBlock Text="Aún no hay reglas configuradas"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center" />
-                        <TextBlock Text="Completa el formulario de la derecha y presiona 'Guardar regla' para crear la primera."
+                        <TextBlock Text="Completa el formulario de la derecha para crear y guardar tu primera regla."
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextAlignment="Center"
@@ -114,6 +138,7 @@
                                               VerticalAlignment="Center"
                                               Click="OnRuleEnabledCheckBoxClick"
                                               Tag="{Binding}"
+                                              AutomationProperties.Name="Activar o desactivar esta regla"
                                               ToolTipService.ToolTip="Activar o desactivar esta regla" />
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -136,12 +161,22 @@
                                     </StackPanel>
 
                                     <Button Grid.Column="2"
-                                            Content="✕"
-                                            Padding="8,4"
+                                            Padding="8,6"
                                             VerticalAlignment="Center"
-                                            Click="OnDeleteRuleClick"
                                             Tag="{Binding}"
-                                            ToolTipService.ToolTip="Eliminar esta regla" />
+                                            AutomationProperties.Name="Eliminar esta regla"
+                                            ToolTipService.ToolTip="Eliminar esta regla">
+                                        <Button.Flyout>
+                                            <Flyout>
+                                                <StackPanel Spacing="8" MaxWidth="240">
+                                                    <TextBlock Text="¿Eliminar esta regla?" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                                    <TextBlock Text="Se borrará de forma permanente." Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+                                                    <Button Content="Eliminar definitivamente" Click="OnDeleteRuleClick" Tag="{Binding}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" HorizontalAlignment="Right" />
+                                                </StackPanel>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                        <FontIcon Glyph="&#xE74D;" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -154,7 +189,7 @@
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
-                    CornerRadius="8"
+                    CornerRadius="{ThemeResource OverlayCornerRadius}"
                     Padding="14">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="10" Padding="0,0,4,0">
@@ -237,11 +272,11 @@
                                 <Border Grid.Column="0"
                                         Width="36"
                                         Height="36"
-                                        CornerRadius="6"
+                                        CornerRadius="{ThemeResource ControlCornerRadius}"
                                         BorderThickness="1"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                         Background="{ThemeResource LayerFillColorAltBrush}">
-                                    <Image x:Name="RuleIconPreview" Width="28" Height="28" Stretch="Uniform" />
+                                    <Image x:Name="RuleIconPreview" Width="28" Height="28" Stretch="Uniform" AutomationProperties.Name="Vista previa del icono de la regla" />
                                 </Border>
                                 <TextBox x:Name="IconPathBox"
                                          Grid.Column="1"
@@ -259,7 +294,6 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button x:Name="SaveRuleButton"
                                     Content="Guardar regla"
-                                    Style="{StaticResource AccentButtonStyle}"
                                     Click="OnSaveRuleClick" />
                             <Button x:Name="CancelEditButton"
                                     Content="Limpiar formulario"
@@ -270,7 +304,7 @@
                         <Border BorderThickness="1"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 Background="{ThemeResource LayerFillColorAltBrush}"
-                                CornerRadius="6"
+                                CornerRadius="{ThemeResource ControlCornerRadius}"
                                 Padding="10">
                             <StackPanel Spacing="6">
                                 <TextBlock Text="Vista previa en vivo de esta regla"
@@ -311,7 +345,7 @@
                 BorderThickness="1"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 Background="{ThemeResource LayerFillColorDefaultBrush}"
-                CornerRadius="8"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
                 Padding="12,10">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>

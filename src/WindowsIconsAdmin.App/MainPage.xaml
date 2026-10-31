@@ -16,19 +16,32 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Barra de acciones frecuentes; las herramientas secundarias viven en un solo menú. -->
+        <!-- Barra de acciones frecuentes; herramientas principales accesibles en un clic. -->
         <CommandBar Grid.Row="0" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" BorderThickness="0">
-            <AppBarButton Icon="Folder" Label="Agregar carpetas" Click="OnAddFoldersClick" ToolTipService.ToolTip="Selecciona una o varias carpetas a la vez (Ctrl o Shift + clic)" />
+            <AppBarButton x:Name="AddFoldersAppBarButton" Icon="Folder" Label="Agregar carpetas" Click="OnAddFoldersClick" ToolTipService.ToolTip="Selecciona una o varias carpetas a la vez (Ctrl+O)">
+                <AppBarButton.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="Control" Key="O" />
+                </AppBarButton.KeyboardAccelerators>
+            </AppBarButton>
             <AppBarSeparator />
-            <AppBarButton Icon="Refresh" Label="Restaurar" Click="OnRestoreDefaultClick" ToolTipService.ToolTip="Restaurar el icono predeterminado de las carpetas marcadas" />
-            <AppBarButton Icon="Undo" Label="Deshacer" Click="OnUndoLastBatchClick" ToolTipService.ToolTip="Revertir el último cambio" />
+            <AppBarButton x:Name="RestoreAppBarButton" Icon="Refresh" Label="Restaurar" Click="OnRestoreDefaultClick" ToolTipService.ToolTip="Restaurar el icono predeterminado de las carpetas marcadas" />
+            <AppBarButton x:Name="UndoAppBarButton" Icon="Undo" Label="Deshacer" Click="OnUndoLastBatchClick" ToolTipService.ToolTip="Revertir el último cambio (Ctrl+Z)">
+                <AppBarButton.KeyboardAccelerators>
+                    <KeyboardAccelerator Modifiers="Control" Key="Z" />
+                </AppBarButton.KeyboardAccelerators>
+            </AppBarButton>
+            <AppBarSeparator />
+            <AppBarButton Icon="Bullets" Label="Reglas" Click="OnRulesClick" ToolTipService.ToolTip="Configurar reglas de asignación automática de iconos" />
+            <AppBarButton Label="Iconos del sistema" Click="OnSystemIconsClick" ToolTipService.ToolTip="Personalizar iconos de Windows (Papelera, Este Equipo, Carpetas de Perfil)">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE770;" />
+                </AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Icon="Setting" Label="Configuración" Click="OnSettingsClick" ToolTipService.ToolTip="Ajustes de almacenamiento, caché y Git" />
 
             <CommandBar.SecondaryCommands>
                 <AppBarButton Label="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" ToolTipService.ToolTip="Elige una carpeta raíz y agrega sus subcarpetas directas" />
-                <AppBarButton Label="Reglas" Click="OnRulesClick" />
-                <AppBarButton Label="Iconos del sistema" Click="OnSystemIconsClick" />
-                <AppBarButton Label="Configuración" Click="OnSettingsClick" />
-                <AppBarButton Label="Limpiar lista" Click="OnClearListClick" />
+                <AppBarButton Label="Limpiar lista" Click="OnClearListClick" ToolTipService.ToolTip="Vaciar la lista de carpetas" />
             </CommandBar.SecondaryCommands>
         </CommandBar>
 
@@ -44,7 +57,7 @@
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
-                    CornerRadius="8"
+                    CornerRadius="{ThemeResource OverlayCornerRadius}"
                     Padding="12"
                     AllowDrop="True"
                     DragOver="OnListDragOver"
@@ -71,9 +84,9 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <Button Content="Marcar todas" Click="OnSelectAllClick" />
-                            <Button Content="Desmarcar todas" Click="OnDeselectAllClick" />
-                            <Button Content="Solo resaltadas" Click="OnCheckHighlightedOnlyClick" ToolTipService.ToolTip="Marca únicamente las filas seleccionadas con Ctrl o Shift en la lista" />
+                            <Button x:Name="SelectAllButton" Content="Marcar todas" Click="OnSelectAllClick" />
+                            <Button x:Name="DeselectAllButton" Content="Desmarcar todas" Click="OnDeselectAllClick" />
+                            <Button x:Name="CheckHighlightedOnlyButton" Content="Marcar resaltadas" Click="OnCheckHighlightedOnlyClick" ToolTipService.ToolTip="Marca únicamente las filas seleccionadas con Ctrl o Shift en la lista" />
                         </StackPanel>
                     </Grid>
 
@@ -81,11 +94,15 @@
                     <StackPanel x:Name="EmptyListPlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                         <FontIcon Glyph="&#xED25;" FontSize="48" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                         <TextBlock Text="Agrega las carpetas que quieres personalizar" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                        <TextBlock Text="Arrástralas desde el Explorador o usa Agregar carpetas en la barra superior." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <TextBlock Text="Arrástralas desde el Explorador o usa el botón de abajo para seleccionarlas." Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" TextAlignment="Center" />
+                        <Button Content="Agregar carpetas..." Style="{StaticResource AccentButtonStyle}" Click="OnAddFoldersClick" HorizontalAlignment="Center" />
                     </StackPanel>
 
                     <!-- Lista de carpetas -->
                     <ListView x:Name="FoldersListView" Grid.Row="1" SelectionMode="Extended">
+                        <ListView.KeyboardAccelerators>
+                            <KeyboardAccelerator Key="Delete" Invoked="OnFoldersListDeleteKeyInvoked" />
+                        </ListView.KeyboardAccelerators>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:FolderItemViewModel">
                                 <Grid ColumnSpacing="12" Padding="8,6" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
@@ -97,24 +114,30 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <CheckBox Grid.Column="0" IsChecked="{x:Bind IsSelected, Mode=TwoWay}" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
+                                              AutomationProperties.Name="{x:Bind FolderName}"
+                                              ToolTipService.ToolTip="Incluir carpeta en el lote" />
                                     <FontIcon Grid.Column="1" Glyph="&#xE8B7;" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
 
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{x:Bind FolderName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{x:Bind FullPath}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{x:Bind WarningText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="#D97706" Visibility="{x:Bind WarningVisibility, Mode=OneWay}" />
+                                        <TextBlock Text="{x:Bind WarningText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind WarningVisibility, Mode=OneWay}" />
                                     </StackPanel>
 
                                     <TextBlock Grid.Column="3" Text="{x:Bind Status, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" FontWeight="Medium" />
 
                                     <Button Grid.Column="4"
-                                            Content="✕"
-                                            Padding="8,4"
+                                            Padding="8,6"
                                             VerticalAlignment="Center"
                                             Click="OnRemoveSingleFolderClick"
                                             Tag="{x:Bind}"
-                                            ToolTipService.ToolTip="Quitar esta carpeta de la lista" />
+                                            AutomationProperties.Name="Quitar esta carpeta de la lista"
+                                            ToolTipService.ToolTip="Quitar esta carpeta de la lista">
+                                        <FontIcon Glyph="&#xE711;" FontSize="12" />
+                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -131,21 +154,24 @@
                 <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="16" Padding="0,0,4,0">
                 <!-- Tarjeta: Icono Seleccionado -->
-                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="16">
+                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="{ThemeResource OverlayCornerRadius}" Padding="16">
                     <StackPanel Spacing="12">
                         <TextBlock Text="Vista previa del icono" FontWeight="SemiBold" Style="{StaticResource BodyStrongTextBlockStyle}" />
                         
-                        <Border Width="96" Height="96" HorizontalAlignment="Center" Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                            <Image x:Name="IconPreviewImage" Width="64" Height="64" HorizontalAlignment="Center" VerticalAlignment="Center" Stretch="Uniform" />
+                        <Border Width="96" Height="96" HorizontalAlignment="Center" Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="{ThemeResource ControlCornerRadius}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <FontIcon x:Name="IconPreviewPlaceholder" Glyph="&#xEB9F;" FontSize="36" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="Visible" />
+                                <Image x:Name="IconPreviewImage" Width="64" Height="64" HorizontalAlignment="Center" VerticalAlignment="Center" Stretch="Uniform" Visibility="Collapsed" AutomationProperties.Name="Vista previa del icono seleccionado" />
+                            </Grid>
                         </Border>
 
                         <TextBlock x:Name="IconInfoLabel" Text="Ningún icono seleccionado" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
-                        <Button Content="Seleccionar archivo (.ico / .png)" HorizontalAlignment="Stretch" Click="OnSelectIconClick" />
+                        <Button x:Name="SelectIconButton" Content="Seleccionar archivo (.ico / .png)" HorizontalAlignment="Stretch" Click="OnSelectIconClick" />
                     </StackPanel>
                 </Border>
 
                 <!-- Tarjeta: Modo de Almacenamiento -->
-                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="16">
+                <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="{ThemeResource OverlayCornerRadius}" Padding="16">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Ubicación del icono" FontWeight="SemiBold" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
@@ -198,7 +224,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="ProgressStatusText" Text="Procesando lote..." Style="{StaticResource CaptionTextBlockStyle}" />
-            <Button Grid.Column="1" Content="Cancelar" Click="OnCancelBatchClick" />
+            <Button x:Name="CancelBatchButton" Grid.Column="1" Content="Cancelar" Click="OnCancelBatchClick" />
             <ProgressBar x:Name="BatchProgressBar" Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" />
         </Grid>
 

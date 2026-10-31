@@ -4,6 +4,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using WindowsIconsAdmin.Core.History;
 using WindowsIconsAdmin.Core.Imaging;
@@ -31,6 +32,7 @@ public sealed partial class MainPage : Page
     private byte[]? _selectedIconBytes;
     private string? _selectedIconPath;
     private CancellationTokenSource? _currentCts;
+    private bool _isBusy;
 
     public MainPage()
     {
@@ -74,6 +76,7 @@ public sealed partial class MainPage : Page
     {
         var total = _folders.Count;
         var checkedCount = _folders.Count(f => f.IsSelected);
+        var hasIcon = _selectedIconBytes != null;
 
         EmptyListPlaceholder.Visibility = total == 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -89,6 +92,30 @@ public sealed partial class MainPage : Page
             ApplyIconPrimaryButton.Content = checkedCount > 0
                 ? $"Aplicar icono a {checkedCount} {(checkedCount == 1 ? "carpeta" : "carpetas")}"
                 : "Aplicar icono a seleccionadas";
+            ApplyIconPrimaryButton.IsEnabled = !_isBusy && checkedCount > 0 && hasIcon;
+        }
+
+        if (SelectAllButton != null) SelectAllButton.IsEnabled = !_isBusy && total > 0;
+        if (DeselectAllButton != null) DeselectAllButton.IsEnabled = !_isBusy && total > 0;
+        if (CheckHighlightedOnlyButton != null) CheckHighlightedOnlyButton.IsEnabled = !_isBusy && total > 0;
+
+        if (RestoreAppBarButton != null)
+        {
+            RestoreAppBarButton.IsEnabled = !_isBusy && checkedCount > 0;
+        }
+
+        if (UndoAppBarButton != null)
+        {
+            var lastPending = _undoStore.GetLastPending();
+            UndoAppBarButton.IsEnabled = !_isBusy && lastPending != null;
+            if (lastPending != null)
+            {
+                ToolTipService.SetToolTip(UndoAppBarButton, $"Revertir último cambio ({lastPending.Folders.Count} carpetas) - Ctrl+Z");
+            }
+            else
+            {
+                ToolTipService.SetToolTip(UndoAppBarButton, "No hay cambios pendientes para revertir");
+            }
         }
     }
 
@@ -305,6 +332,22 @@ public sealed partial class MainPage : Page
         {
             item.PropertyChanged -= OnFolderItemPropertyChanged;
             _folders.Remove(item);
+            UpdateEmptyAndSelectionState();
+        }
+    }
+
+    private void OnFoldersListDeleteKeyInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        var selected = FoldersListView.SelectedItems.OfType<FolderItemViewModel>().ToList();
+        if (selected.Count > 0)
+        {
+            foreach (var item in selected)
+            {
+                item.PropertyChanged -= OnFolderItemPropertyChanged;
+                _folders.Remove(item);
+            }
+            UpdateEmptyAndSelectionState();
+            args.Handled = true;
         }
     }
 
@@ -355,7 +398,10 @@ public sealed partial class MainPage : Page
             var bmp = new BitmapImage();
             await bmp.SetSourceAsync(ras);
             IconPreviewImage.Source = bmp;
+            if (IconPreviewPlaceholder != null) IconPreviewPlaceholder.Visibility = Visibility.Collapsed;
+            if (IconPreviewImage != null) IconPreviewImage.Visibility = Visibility.Visible;
 
+            UpdateEmptyAndSelectionState();
             ShowInfo("Icono cargado correctamente.", InfoBarSeverity.Informational);
         }
         catch (Exception ex)
@@ -370,6 +416,8 @@ public sealed partial class MainPage : Page
 
     private async void OnApplyIconClick(object sender, RoutedEventArgs e)
     {
+        if (_isBusy) return;
+
         var selectedFolders = _folders.Where(f => f.IsSelected).ToList();
         if (selectedFolders.Count == 0)
         {
@@ -458,6 +506,8 @@ public sealed partial class MainPage : Page
 
     private async void OnRestoreDefaultClick(object sender, RoutedEventArgs e)
     {
+        if (_isBusy) return;
+
         var selectedFolders = _folders.Where(f => f.IsSelected).ToList();
         if (selectedFolders.Count == 0)
         {
@@ -516,6 +566,8 @@ public sealed partial class MainPage : Page
 
     private async void OnUndoLastBatchClick(object sender, RoutedEventArgs e)
     {
+        if (_isBusy) return;
+
         var lastBatch = _undoStore.GetLastPending();
         if (lastBatch == null)
         {
@@ -523,12 +575,20 @@ public sealed partial class MainPage : Page
             return;
         }
 
+        _currentCts = new CancellationTokenSource();
+        var token = _currentCts.Token;
+
         SetProgress(true, 0, lastBatch.Folders.Count, "Revirtiendo último lote...");
+
+        var successCount = 0;
+        var errorCount = 0;
 
         await Task.Run(() =>
         {
             for (var i = 0; i < lastBatch.Folders.Count; i++)
             {
+                if (token.IsCancellationRequested) break;
+
                 var snap = lastBatch.Folders[i];
                 UpdateProgress(i + 1, lastBatch.Folders.Count, $"Revirtiendo: {Path.GetFileName(snap.FolderPath)}");
 
@@ -541,29 +601,58 @@ public sealed partial class MainPage : Page
                         var match = _folders.FirstOrDefault(f => f.FullPath.Equals(snap.FolderPath, StringComparison.OrdinalIgnoreCase));
                         if (match != null) match.Status = "Revertido";
                     });
+                    successCount++;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    App.AppDispatcherQueue?.TryEnqueue(() =>
+                    {
+                        var match = _folders.FirstOrDefault(f => f.FullPath.Equals(snap.FolderPath, StringComparison.OrdinalIgnoreCase));
+                        if (match != null) match.Status = $"Error al revertir: {ex.Message}";
+                    });
+                }
             }
 
-            _undoStore.MarkReverted(lastBatch.BatchId);
-            _shellService.NotifyBatchCompleted();
+            if (successCount > 0)
+            {
+                _undoStore.MarkReverted(lastBatch.BatchId);
+                _shellService.NotifyBatchCompleted();
+            }
         });
 
         SetProgress(false);
-        ShowInfo($"Último lote ({lastBatch.Folders.Count} carpetas) revertido con éxito.", InfoBarSeverity.Success);
+
+        if (errorCount > 0)
+        {
+            ShowInfo($"Deshacer completado con advertencias: {successCount} carpetas revertidas, {errorCount} con error.", InfoBarSeverity.Warning);
+        }
+        else
+        {
+            ShowInfo($"Último lote ({successCount} {(successCount == 1 ? "carpeta" : "carpetas")}) revertido con éxito.", InfoBarSeverity.Success);
+        }
+        UpdateEmptyAndSelectionState();
     }
 
     private void OnCancelBatchClick(object sender, RoutedEventArgs e)
     {
+        if (CancelBatchButton != null) CancelBatchButton.IsEnabled = false;
+        ProgressStatusText.Text = "Cancelando...";
         _currentCts?.Cancel();
     }
 
     private void SetProgress(bool visible, int current = 0, int total = 0, string status = "")
     {
+        _isBusy = visible;
         ProgressArea.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         BatchProgressBar.Maximum = total > 0 ? total : 1;
         BatchProgressBar.Value = current;
         ProgressStatusText.Text = status;
+        if (CancelBatchButton != null)
+        {
+            CancelBatchButton.IsEnabled = visible;
+        }
+        UpdateEmptyAndSelectionState();
     }
 
     private void UpdateProgress(int current, int total, string status)
@@ -612,6 +701,7 @@ public sealed partial class MainPage : Page
 
     private async Task ApplyRulesToFoldersAsync(IReadOnlyList<FolderRule> rules, bool selectedOnly)
     {
+        if (_isBusy) return;
         PersistUpdatedRules(rules);
 
         var targetItems = selectedOnly

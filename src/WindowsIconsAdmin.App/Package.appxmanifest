@@ -11,12 +11,12 @@
   <Identity
     Name="2341E0C3-6253-40CD-9CE7-C752B2A9A036"
     Publisher="CN=AppPublisher"
-    Version="0.2.0.0" />
+    Version="1.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="2341E0C3-6253-40CD-9CE7-C752B2A9A036" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>WindowsIconsAdmin.App</DisplayName>
+    <DisplayName>Windows Icons Admin</DisplayName>
     <PublisherDisplayName>AppPublisher</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -35,8 +35,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="WindowsIconsAdmin.App"
-        Description="WindowsIconsAdmin.App"
+        DisplayName="Windows Icons Admin"
+        Description="Windows Icons Admin"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
