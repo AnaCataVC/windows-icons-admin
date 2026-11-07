@@ -835,7 +835,7 @@ public sealed partial class MainPage : Page
 
     private async void OnAppStylesClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new StyleEditorDialog
+        var dialog = new AppIconsDialog
         {
             XamlRoot = this.XamlRoot
         };

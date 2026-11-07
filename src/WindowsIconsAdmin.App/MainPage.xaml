@@ -37,7 +37,7 @@
                     <FontIcon Glyph="&#xE770;" />
                 </AppBarButton.Icon>
             </AppBarButton>
-            <AppBarButton Label="Estilos de apps" Click="OnAppStylesClick" ToolTipService.ToolTip="Editor y previsualización en vivo de estilos para aplicaciones">
+            <AppBarButton Label="Iconos de apps" Click="OnAppStylesClick" ToolTipService.ToolTip="Personalizar iconos de aplicaciones instaladas (Fase 3 y 4)">
                 <AppBarButton.Icon>
                     <FontIcon Glyph="&#xE790;" />
                 </AppBarButton.Icon>
