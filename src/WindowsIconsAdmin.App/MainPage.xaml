@@ -37,6 +37,11 @@
                     <FontIcon Glyph="&#xE770;" />
                 </AppBarButton.Icon>
             </AppBarButton>
+            <AppBarButton Label="Estilos de apps" Click="OnAppStylesClick" ToolTipService.ToolTip="Editor y previsualización en vivo de estilos para aplicaciones">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE790;" />
+                </AppBarButton.Icon>
+            </AppBarButton>
             <AppBarButton Icon="Setting" Label="Configuración" Click="OnSettingsClick" ToolTipService.ToolTip="Ajustes de almacenamiento, caché y Git" />
 
             <CommandBar.SecondaryCommands>

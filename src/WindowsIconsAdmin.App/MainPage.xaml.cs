@@ -833,6 +833,15 @@ public sealed partial class MainPage : Page
         await dialog.ShowAsync();
     }
 
+    private async void OnAppStylesClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new StyleEditorDialog
+        {
+            XamlRoot = this.XamlRoot
+        };
+        await dialog.ShowAsync();
+    }
+
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsDialog(_settingsService, _storageService)
