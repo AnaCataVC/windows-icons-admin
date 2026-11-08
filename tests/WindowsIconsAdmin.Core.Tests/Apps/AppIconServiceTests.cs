@@ -23,7 +23,7 @@ public class AppIconServiceTests : IDisposable
 
         _fakeShortcutService = new FakeShortcutService();
         _undoStore = new AppIconUndoStore(_undoFile);
-        _service = new AppIconService(_fakeShortcutService, _undoStore, _iconsDir);
+        _service = new AppIconService(_fakeShortcutService, _undoStore, new RenderedIconCache(_iconsDir));
     }
 
     public void Dispose()
@@ -122,6 +122,56 @@ public class AppIconServiceTests : IDisposable
         Assert.Equal(1, restoredIdx);
 
         // No more pending batches in UndoStore
+        Assert.Null(_undoStore.GetLastPending());
+    }
+
+    [Fact]
+    public void ApplyBatch_WhenCancelled_CommitsCompletedItems()
+    {
+        var lnk1 = Path.Combine(_tempDir, "App1.lnk");
+        var lnk2 = Path.Combine(_tempDir, "App2.lnk");
+        File.WriteAllText(lnk1, "app1");
+        File.WriteAllText(lnk2, "app2");
+        _fakeShortcutService.SetData(lnk1, @"C:\App1\app1.exe", null, 0);
+        _fakeShortcutService.SetData(lnk2, @"C:\App2\app2.exe", null, 0);
+
+        var app1 = new InstalledApp("app-1", "App 1", @"C:\App1\app1.exe", null, [new IconTarget(IconTargetType.UserStartMenuShortcut, lnk1, null, 0, AppSupportStatus.Supported)]);
+        var app2 = new InstalledApp("app-2", "App 2", @"C:\App2\app2.exe", null, [new IconTarget(IconTargetType.UserStartMenuShortcut, lnk2, null, 0, AppSupportStatus.Supported)]);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel(); // Pre-cancelled
+
+        var style = IconStyle.CreateDefault();
+        var result = _service.ApplyBatch([(app1, style, new byte[] { 1 }), (app2, style, new byte[] { 2 })], cancellationToken: cts.Token);
+
+        Assert.True(result.WasCancelled);
+        Assert.Equal(0, result.AppliedCount);
+    }
+
+    [Fact]
+    public void RevertAll_RestoresMultipleBatches()
+    {
+        var lnk1 = Path.Combine(_tempDir, "Bat1.lnk");
+        var lnk2 = Path.Combine(_tempDir, "Bat2.lnk");
+        File.WriteAllText(lnk1, "bat1");
+        File.WriteAllText(lnk2, "bat2");
+        _fakeShortcutService.SetData(lnk1, @"C:\Bat1\b1.exe", @"C:\Bat1\orig1.ico", 0);
+        _fakeShortcutService.SetData(lnk2, @"C:\Bat2\b2.exe", @"C:\Bat2\orig2.ico", 0);
+
+        var app1 = new InstalledApp("app-b1", "Bat 1", @"C:\Bat1\b1.exe", null, [new IconTarget(IconTargetType.UserStartMenuShortcut, lnk1, @"C:\Bat1\orig1.ico", 0, AppSupportStatus.Supported)]);
+        var app2 = new InstalledApp("app-b2", "Bat 2", @"C:\Bat2\b2.exe", null, [new IconTarget(IconTargetType.UserStartMenuShortcut, lnk2, @"C:\Bat2\orig2.ico", 0, AppSupportStatus.Supported)]);
+
+        var style = IconStyle.CreateDefault();
+        _service.ApplyBatch([(app1, style, new byte[] { 1 })]);
+        _service.ApplyBatch([(app2, style, new byte[] { 2 })]);
+
+        var restoredCount = _service.RevertAll();
+        Assert.Equal(2, restoredCount);
+
+        var (_, icon1, _) = _fakeShortcutService.ReadShortcut(lnk1);
+        var (_, icon2, _) = _fakeShortcutService.ReadShortcut(lnk2);
+        Assert.Equal(@"C:\Bat1\orig1.ico", icon1);
+        Assert.Equal(@"C:\Bat2\orig2.ico", icon2);
         Assert.Null(_undoStore.GetLastPending());
     }
 

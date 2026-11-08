@@ -13,9 +13,11 @@ public sealed partial class AppIconsDialog : ContentDialog
     private readonly IAppDiscoveryService _discoveryService;
     private readonly IAppIconService _appIconService;
     private readonly StyleStore _styleStore;
-    private readonly ObservableCollection<AppItemViewModel> _appItems = [];
+    private readonly List<AppItemViewModel> _allAppItems = [];
+    private readonly ObservableCollection<AppItemViewModel> _displayedAppItems = [];
     private readonly List<IconStyle> _availableStyles = [];
     private IconStyle _currentStyle;
+    private CancellationTokenSource? _currentCts;
     private bool _isBusy;
 
     public AppIconsDialog(
@@ -32,7 +34,7 @@ public sealed partial class AppIconsDialog : ContentDialog
         _currentStyle = _availableStyles.FirstOrDefault() ?? IconStyle.CreateDefault();
 
         LoadStylesIntoUi();
-        AppsListView.ItemsSource = _appItems;
+        AppsListView.ItemsSource = _displayedAppItems;
 
         Loaded += async (s, e) => await ScanAppsAsync();
     }
@@ -60,7 +62,8 @@ public sealed partial class AppIconsDialog : ContentDialog
         if (_isBusy) return;
         SetProgress(true, "Buscando aplicaciones instaladas...");
 
-        _appItems.Clear();
+        _allAppItems.Clear();
+        _displayedAppItems.Clear();
 
         await Task.Run(() =>
         {
@@ -70,20 +73,47 @@ public sealed partial class AppIconsDialog : ContentDialog
             {
                 foreach (var app in apps)
                 {
-                    _appItems.Add(new AppItemViewModel(app, _currentStyle));
+                    _allAppItems.Add(new AppItemViewModel(app, _currentStyle));
                 }
-                UpdateAppCountLabels();
+                ApplySearchFilter();
             });
         });
 
         SetProgress(false);
     }
 
+    private void ApplySearchFilter()
+    {
+        var filter = SearchBox.Text?.Trim() ?? string.Empty;
+        _displayedAppItems.Clear();
+
+        var matches = string.IsNullOrEmpty(filter)
+            ? _allAppItems
+            : _allAppItems.Where(a => a.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                                      a.PrimaryTargetPath.Contains(filter, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var item in matches)
+        {
+            _displayedAppItems.Add(item);
+        }
+
+        UpdateAppCountLabels();
+    }
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplySearchFilter();
+    }
+
     private void UpdateAppCountLabels()
     {
-        var total = _appItems.Count;
-        var supported = _appItems.Count(a => a.IsSupported);
-        AppCountLabel.Text = $"{total} aplicaciones detectadas ({supported} soportadas para personalización)";
+        var total = _allAppItems.Count;
+        var supported = _allAppItems.Count(a => a.IsSupported);
+        var displayed = _displayedAppItems.Count;
+
+        AppCountLabel.Text = displayed == total
+            ? $"{total} aplicaciones detectadas ({supported} soportadas)"
+            : $"{displayed} de {total} mostradas ({supported} soportadas)";
     }
 
     private void OnStyleSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -91,7 +121,7 @@ public sealed partial class AppIconsDialog : ContentDialog
         if (StyleComboBox.SelectedItem is ComboBoxItem { Tag: IconStyle selectedStyle })
         {
             _currentStyle = selectedStyle;
-            foreach (var item in _appItems)
+            foreach (var item in _allAppItems)
             {
                 item.UpdatePreview(_currentStyle);
             }
@@ -106,7 +136,6 @@ public sealed partial class AppIconsDialog : ContentDialog
         };
         await editor.ShowAsync();
 
-        // Refresh styles list
         _availableStyles.Clear();
         _availableStyles.AddRange(_styleStore.GetAll());
         LoadStylesIntoUi();
@@ -119,7 +148,7 @@ public sealed partial class AppIconsDialog : ContentDialog
 
     private void OnSelectSupportedClick(object sender, RoutedEventArgs e)
     {
-        foreach (var item in _appItems)
+        foreach (var item in _displayedAppItems)
         {
             item.IsSelected = item.IsSupported;
         }
@@ -127,7 +156,7 @@ public sealed partial class AppIconsDialog : ContentDialog
 
     private void OnDeselectAllClick(object sender, RoutedEventArgs e)
     {
-        foreach (var item in _appItems)
+        foreach (var item in _displayedAppItems)
         {
             item.IsSelected = false;
         }
@@ -137,14 +166,23 @@ public sealed partial class AppIconsDialog : ContentDialog
     {
         if (_isBusy) return;
 
-        var selected = _appItems.Where(a => a.IsSelected && a.IsSupported).ToList();
+        var selected = _allAppItems.Where(a => a.IsSelected && a.IsSupported).ToList();
         if (selected.Count == 0)
         {
             ShowInfo("Selecciona al menos una aplicación soportada para aplicar.", InfoBarSeverity.Warning);
             return;
         }
 
-        SetProgress(true, $"Generando y aplicando iconos ({selected.Count} apps)...");
+        _currentCts = new CancellationTokenSource();
+        SetProgress(true, $"Iniciando aplicación de estilos ({selected.Count} apps)...", canCancel: true);
+
+        var progress = new Progress<(int Current, int Total, string Status)>(report =>
+        {
+            BatchProgressBar.IsIndeterminate = false;
+            BatchProgressBar.Maximum = report.Total;
+            BatchProgressBar.Value = report.Current;
+            ProgressStatusText.Text = $"Procesando ({report.Current}/{report.Total}): {report.Status}";
+        });
 
         await Task.Run(() =>
         {
@@ -160,7 +198,7 @@ public sealed partial class AppIconsDialog : ContentDialog
                 }
             }
 
-            var result = _appIconService.ApplyBatch(batchItems);
+            var result = _appIconService.ApplyBatch(batchItems, progress: progress, cancellationToken: _currentCts.Token);
 
             App.AppDispatcherQueue?.TryEnqueue(() =>
             {
@@ -169,7 +207,11 @@ public sealed partial class AppIconsDialog : ContentDialog
                     item.Status = "Aplicado";
                 }
 
-                if (result.ErrorCount > 0)
+                if (result.WasCancelled)
+                {
+                    ShowInfo($"Lote cancelado por el usuario. Se completaron {result.AppliedCount} aplicaciones antes de detenerse.", InfoBarSeverity.Warning);
+                }
+                else if (result.ErrorCount > 0)
                 {
                     ShowInfo($"Lote aplicado con advertencias: {result.AppliedCount} iconos actualizados, {result.ErrorCount} errores.", InfoBarSeverity.Warning);
                 }
@@ -181,6 +223,13 @@ public sealed partial class AppIconsDialog : ContentDialog
         });
 
         SetProgress(false);
+    }
+
+    private void OnCancelBatchClick(object sender, RoutedEventArgs e)
+    {
+        _currentCts?.Cancel();
+        ProgressStatusText.Text = "Cancelando...";
+        CancelButton.IsEnabled = false;
     }
 
     private async void OnUndoLastBatchClick(object sender, RoutedEventArgs e)
@@ -196,7 +245,7 @@ public sealed partial class AppIconsDialog : ContentDialog
             {
                 if (reverted)
                 {
-                    foreach (var item in _appItems)
+                    foreach (var item in _allAppItems)
                     {
                         item.Status = "Revertido";
                     }
@@ -212,14 +261,46 @@ public sealed partial class AppIconsDialog : ContentDialog
         SetProgress(false);
     }
 
-    private void SetProgress(bool visible, string status = "")
+    private async void OnRestoreAllClick(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy) return;
+        SetProgress(true, "Restaurando todos los iconos de aplicaciones...");
+
+        await Task.Run(() =>
+        {
+            var restoredCount = _appIconService.RevertAll();
+
+            App.AppDispatcherQueue?.TryEnqueue(() =>
+            {
+                if (restoredCount > 0)
+                {
+                    foreach (var item in _allAppItems)
+                    {
+                        item.Status = "Original";
+                    }
+                    ShowInfo($"Se restauraron {restoredCount} accesos directos a su icono original.", InfoBarSeverity.Success);
+                }
+                else
+                {
+                    ShowInfo("No había accesos directos modificados pendientes de restaurar.", InfoBarSeverity.Informational);
+                }
+            });
+        });
+
+        SetProgress(false);
+    }
+
+    private void SetProgress(bool visible, string status = "", bool canCancel = false)
     {
         _isBusy = visible;
         ProgressArea.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         BatchProgressBar.IsIndeterminate = visible;
         ProgressStatusText.Text = status;
+        CancelButton.Visibility = canCancel ? Visibility.Visible : Visibility.Collapsed;
+        CancelButton.IsEnabled = canCancel;
         ApplyButton.IsEnabled = !visible;
         UndoButton.IsEnabled = !visible;
+        RestoreAllButton.IsEnabled = !visible;
     }
 
     private void ShowInfo(string message, InfoBarSeverity severity)

@@ -25,7 +25,10 @@ Customizing folder icons in Windows has historically been divided between manual
 ### Key Features
 
 - **Automated Rule Engine**: High-throughput rule matching (`Contains`, `StartsWith`, `EndsWith`, `Regex`) with priority ordering and ReDoS catastrophic backtracking protection.
-- **Pure-Stream ICO Encoding**: Generates compliant 7-resolution `.ico` binaries (16px to 256px) from arbitrary PNGs with chunk-level integrity verification.
+- **Application Icon Styling & Discovery**: Automatic discovery of installed applications from User and Common Start Menu and Desktop shortcuts. Applies deterministic, gentle visual styling recipes (`Squircle`, `RoundedSquare`, `Circle` containers with saturation, brightness, and contrast adjustments) without touching executable binaries or breaking Authenticode code signatures.
+- **Interactive Style Editor & Live Preview**: Real-time multi-icon preview rendering in memory before applying changes to the Windows Shell.
+- **Dedicated App Transaction Log & Undo**: Atomic application undo history persisted in `%LOCALAPPDATA%\WindowsIconsAdmin\State\app-undo.json`, with physical original snapshot backups and one-click batch or full restoration.
+- **Pure-Stream ICO Encoding**: Generates compliant 7-resolution `.ico` binaries (16px to 256px) from arbitrary PNGs and pure RGBA canvas buffers with chunk-level integrity verification.
 - **Central Cache & Dual Storage Modality**: Enforces Central Cache (`%LOCALAPPDATA%\WindowsIconsAdmin\Icons\`) by default to keep folders 100% clean without loose icon assets. Portable embedded mode (`.folder_icon.ico`) is supported as an opt-in advanced setting for removable USB drives.
 - **Windows 11 Navigation Pane & Drive Icons**: Customizable icons for Windows 11 Explorer sidebar items and drive volumes with safe OneDrive restoration safeguards.
 - **Persistent Configuration & Settings Dialog**: Thread-safe configuration system via `AppSettingsService` (`settings.json`) paired with a dedicated modal `SettingsDialog` accessible from the top toolbar, featuring automated global `.gitignore` integration for `desktop.ini`.

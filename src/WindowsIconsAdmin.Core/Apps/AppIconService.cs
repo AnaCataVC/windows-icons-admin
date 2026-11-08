@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using WindowsIconsAdmin.Core.History;
-using WindowsIconsAdmin.Core.Shell;
 using WindowsIconsAdmin.Core.Styling;
 
 namespace WindowsIconsAdmin.Core.Apps;
@@ -10,41 +9,52 @@ public class AppIconService : IAppIconService
 {
     private readonly IShortcutService _shortcutService;
     private readonly AppIconUndoStore _undoStore;
-    private readonly string _generatedIconsDirectory;
+    private readonly RenderedIconCache _iconCache;
+    private readonly OriginalSnapshotStore _snapshotStore;
 
     public AppIconService(
         IShortcutService? shortcutService = null,
         AppIconUndoStore? undoStore = null,
-        string? generatedIconsDirectory = null)
+        RenderedIconCache? iconCache = null,
+        OriginalSnapshotStore? snapshotStore = null)
     {
         _shortcutService = shortcutService ?? new WindowsShortcutService();
         _undoStore = undoStore ?? new AppIconUndoStore(
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "WindowsIconsAdmin", "State", "app-undo.json"));
-
-        _generatedIconsDirectory = generatedIconsDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WindowsIconsAdmin", "GeneratedIcons");
+        _iconCache = iconCache ?? new RenderedIconCache();
+        _snapshotStore = snapshotStore ?? new OriginalSnapshotStore();
     }
 
-    public string GeneratedIconsDirectory => _generatedIconsDirectory;
     public AppIconUndoStore UndoStore => _undoStore;
+    public RenderedIconCache IconCache => _iconCache;
+    public OriginalSnapshotStore SnapshotStore => _snapshotStore;
 
     public AppBatchResult ApplyBatch(
         IReadOnlyList<(InstalledApp App, IconStyle Style, byte[] IcoBytes)> batchItems,
-        string? batchId = null)
+        string? batchId = null,
+        IProgress<(int Current, int Total, string Status)>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(batchItems);
-
-        Directory.CreateDirectory(_generatedIconsDirectory);
 
         var appliedChanges = new List<AppIconChange>();
         var errors = new List<string>();
         var skippedCount = 0;
         var appliedCount = 0;
+        var wasCancelled = false;
 
-        foreach (var (app, style, icoBytes) in batchItems)
+        for (var i = 0; i < batchItems.Count; i++)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                wasCancelled = true;
+                break;
+            }
+
+            var (app, style, icoBytes) = batchItems[i];
+            progress?.Report((i + 1, batchItems.Count, app.DisplayName));
+
             var supportedTargets = app.Targets
                 .Where(t => t.SupportStatus == AppSupportStatus.Supported)
                 .ToList();
@@ -55,19 +65,15 @@ public class AppIconService : IAppIconService
                 continue;
             }
 
-            var hash = Convert.ToHexString(SHA256.HashData(icoBytes)).ToLowerInvariant();
-            var iconFilePath = Path.Combine(_generatedIconsDirectory, $"{hash}.ico");
-
+            var cacheKey = IconStyleRenderer.ComputeCacheKey(icoBytes, style);
+            string iconFilePath;
             try
             {
-                if (!File.Exists(iconFilePath))
-                {
-                    File.WriteAllBytes(iconFilePath, icoBytes);
-                }
+                iconFilePath = _iconCache.Store(cacheKey, icoBytes);
             }
             catch (Exception ex)
             {
-                errors.Add($"Error al guardar el icono para {app.DisplayName}: {ex.Message}");
+                errors.Add($"Error al guardar icono para {app.DisplayName}: {ex.Message}");
                 continue;
             }
 
@@ -83,6 +89,21 @@ public class AppIconService : IAppIconService
                 {
                     var (oldTarget, oldIconLoc, oldIconIdx) = _shortcutService.ReadShortcut(target.TargetPath);
 
+                    // Backup original icon if not already snapshotted
+                    string? snapshotPath = null;
+                    if (!_snapshotStore.SnapshotExists(app.Id) && !string.IsNullOrWhiteSpace(oldIconLoc) && File.Exists(oldIconLoc))
+                    {
+                        try
+                        {
+                            var oldBytes = File.ReadAllBytes(oldIconLoc);
+                            snapshotPath = _snapshotStore.SaveSnapshot(app.Id, oldBytes);
+                        }
+                        catch
+                        {
+                            // Best-effort snapshot
+                        }
+                    }
+
                     _shortcutService.SetShortcutIcon(target.TargetPath, iconFilePath, 0);
 
                     appliedChanges.Add(new AppIconChange(
@@ -92,7 +113,7 @@ public class AppIconService : IAppIconService
                         TargetType: target.TargetType,
                         PreviousIconLocation: oldIconLoc,
                         PreviousIconIndex: oldIconIdx,
-                        OriginalSnapshotPath: null,
+                        OriginalSnapshotPath: snapshotPath,
                         AppliedIconPath: iconFilePath,
                         TimestampUtc: DateTimeOffset.UtcNow));
 
@@ -126,6 +147,7 @@ public class AppIconService : IAppIconService
             AppliedCount: appliedCount,
             SkippedCount: skippedCount,
             ErrorCount: errors.Count,
+            WasCancelled: wasCancelled,
             BatchRecord: batchRecord,
             ErrorMessages: errors.AsReadOnly());
     }
@@ -154,6 +176,54 @@ public class AppIconService : IAppIconService
         return true;
     }
 
+    public int RevertAll()
+    {
+        var all = _undoStore.GetAll().Where(b => !b.Reverted).ToList();
+        var revertedCount = 0;
+
+        foreach (var batch in all)
+        {
+            foreach (var change in batch.Changes)
+            {
+                RevertSingleChange(change);
+                revertedCount++;
+            }
+            _undoStore.MarkReverted(batch.BatchId);
+        }
+
+        if (revertedCount > 0)
+        {
+            NotifyShellAssociationChanged();
+        }
+
+        return revertedCount;
+    }
+
+    public bool RevertApp(string appId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
+
+        var anyReverted = false;
+        var all = _undoStore.GetAll().Where(b => !b.Reverted).ToList();
+
+        foreach (var batch in all)
+        {
+            var appChanges = batch.Changes.Where(c => c.AppId.Equals(appId, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var change in appChanges)
+            {
+                RevertSingleChange(change);
+                anyReverted = true;
+            }
+        }
+
+        if (anyReverted)
+        {
+            NotifyShellAssociationChanged();
+        }
+
+        return anyReverted;
+    }
+
     public void RevertSingleChange(AppIconChange change)
     {
         ArgumentNullException.ThrowIfNull(change);
@@ -171,7 +241,7 @@ public class AppIconService : IAppIconService
             }
             catch
             {
-                // Best effort restoration per shortcut
+                // Best effort
             }
         }
     }

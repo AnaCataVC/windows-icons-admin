@@ -68,18 +68,20 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- Barra de selección rápida -->
+                <!-- Barra de selección y filtro rápido -->
                 <Grid Grid.Row="0" ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <TextBlock x:Name="AppCountLabel" Text="0 aplicaciones detectadas" FontWeight="SemiBold" Style="{StaticResource CaptionTextBlockStyle}" />
-                    </StackPanel>
+                    <TextBlock x:Name="AppCountLabel" Grid.Column="0" Text="0 aplicaciones detectadas" FontWeight="SemiBold" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <!-- Cuadro de búsqueda -->
+                    <TextBox x:Name="SearchBox" Grid.Column="1" PlaceholderText="Buscar aplicación por nombre..." Margin="8,0" TextChanged="OnSearchTextChanged" />
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
                         <Button Content="Marcar soportadas" Click="OnSelectSupportedClick" />
                         <Button Content="Desmarcar todas" Click="OnDeselectAllClick" />
                     </StackPanel>
@@ -141,28 +143,36 @@
             </Grid>
         </Border>
 
-        <!-- Barra de progreso -->
-        <Grid Grid.Row="3" x:Name="ProgressArea" Visibility="Collapsed" RowSpacing="4">
+        <!-- Barra de progreso con botón de Cancelar -->
+        <Grid Grid.Row="3" x:Name="ProgressArea" Visibility="Collapsed" ColumnSpacing="12" RowSpacing="4">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <ProgressBar x:Name="BatchProgressBar" Grid.Row="0" IsIndeterminate="False" />
-            <TextBlock x:Name="ProgressStatusText" Grid.Row="1" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ProgressBar x:Name="BatchProgressBar" Grid.Row="0" Grid.Column="0" IsIndeterminate="False" />
+            <Button x:Name="CancelButton" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Content="Cancelar" Click="OnCancelBatchClick" />
+            <TextBlock x:Name="ProgressStatusText" Grid.Row="1" Grid.Column="0" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </Grid>
 
         <!-- Barra de acciones inferiores y Feedback -->
-        <Grid Grid.Row="4" ColumnSpacing="12">
+        <Grid Grid.Row="4" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <InfoBar x:Name="MainInfoBar" Grid.Column="0" IsOpen="False" />
 
-            <Button x:Name="UndoButton" Grid.Column="1" Content="Deshacer lote anterior" Click="OnUndoLastBatchClick" ToolTipService.ToolTip="Revertir el último lote de iconos de aplicaciones modificados" />
-            <Button x:Name="ApplyButton" Grid.Column="2" Content="Aplicar estilo a seleccionadas" Style="{StaticResource AccentButtonStyle}" Click="OnApplySelectedClick" />
+            <Button x:Name="RestoreAllButton" Grid.Column="1" Content="Restaurar todo" Click="OnRestoreAllClick" ToolTipService.ToolTip="Revertir todos los iconos de apps administrados a sus originales" />
+            <Button x:Name="UndoButton" Grid.Column="2" Content="Deshacer lote anterior" Click="OnUndoLastBatchClick" ToolTipService.ToolTip="Revertir el último lote de iconos de aplicaciones modificados" />
+            <Button x:Name="ApplyButton" Grid.Column="3" Content="Aplicar estilo a seleccionadas" Style="{StaticResource AccentButtonStyle}" Click="OnApplySelectedClick" />
         </Grid>
     </Grid>
 </ContentDialog>
