@@ -10,7 +10,7 @@
 [![C# 13](https://img.shields.io/badge/C%23-13.0-239120?logo=csharp&logoColor=white)](https://learn.microsoft.com/dotnet/csharp/)
 [![WinUI 3](https://img.shields.io/badge/WinUI-3.0-0078D4?logo=windows&logoColor=white)](https://learn.microsoft.com/windows/apps/winui/winui3/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Tests Passing](https://img.shields.io/badge/Tests-459%20superadas-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
+[![Tests Passing](https://img.shields.io/badge/Pruebas-100%25%20superadas-brightgreen?logo=xunit)](tests/WindowsIconsAdmin.Core.Tests)
 [![Architecture](https://img.shields.io/badge/Arquitectura-Cleanroom%20TDD-orange)](docs/adr/0001-winui3-dotnet-architecture.md)
 [![License](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
 
@@ -44,7 +44,7 @@ La solución aplica una estricta separación de responsabilidades, desacoplando 
 ```mermaid
 flowchart TD
     subgraph UI ["Capa de Presentación"]
-        App["WindowsIconsAdmin.App (WinUI 3)<br/>(MainPage y SettingsDialog)"]
+        App["WindowsIconsAdmin.App (WinUI 3)<br/>(MainPage, Diálogos y Ajustes)"]
     end
 
     subgraph Shell ["Servicios de Plataforma"]
@@ -54,6 +54,8 @@ flowchart TD
     subgraph Core ["Dominio Central (Cero Dependencias)"]
         Rules["RuleEngine<br/>(Evaluación de Reglas y Protección ReDoS)"]
         Imaging["IcoEncoder<br/>(7 Capas DIB + PNG256)"]
+        Styling["Styling<br/>(Contenedores Geométricos y Motor de Paleta)"]
+        Apps["Apps<br/>(Descubrimiento y Redirección de Accesos LNK)"]
         History["UndoStore<br/>(JSON Transaccional y Escritura Atómica)"]
         Storage["IconStorageService<br/>(Modos Caché Central y Portable)"]
         Settings["AppSettingsService<br/>(Configuración JSON Persistente)"]
@@ -70,12 +72,14 @@ flowchart TD
 - **`WindowsIconsAdmin.Core`**: Biblioteca de clases independiente del sistema operativo con lógica pura:
   - `Rules`: Evaluación de nombres de carpetas según reglas declarativas (`FolderRule`, `RuleEngine`).
   - `Imaging`: Conversión en memoria de PNG a ICO multirresolución (`IcoEncoder`).
+  - `Styling`: Motor de estilización determinista de iconos, geometría de contenedores (`Squircle`, `RoundedSquare`, `Circle`) y filtrado cromático (`AppStyleEngine`, `AppStyleOptions`).
+  - `Apps`: Descubrimiento de accesos directos, extracción de iconos, redirección segura de archivos `.lnk` y registro transaccional de deshacer para apps (`AppDiscoveryService`, `ShortcutIconApplier`, `AppUndoStore`).
   - `History`: Registro transaccional seguro para subprocesos con reversión atómica (`UndoStore`).
   - `Storage`: Motor de almacenamiento que gestiona la Caché Central (`%LOCALAPPDATA%`) y el Modo Portable opcional (`IconStorageService`, `IconStorageMode`).
   - `Settings`: Almacén de configuración persistente hilo-seguro (`AppSettings`, `AppSettingsService`).
   - `Safety`: Protección de carpetas del sistema, barreras contra path traversal y bloqueo de extensiones restringidas (`SystemFolderGuard`).
 - **`WindowsIconsAdmin.ShellServices`**: Encapsula atributos de archivos Win32, generación de `desktop.ini` y refresco de caché del explorador.
-- **`WindowsIconsAdmin.App`**: Aplicación moderna con diseño Fluent para Windows 11 (WinUI 3 / Windows App SDK) con soporte de arrastrar y soltar multicarpetas, monitor de progreso por lotes, diálogo de reglas y un completo `SettingsDialog`.
+- **`WindowsIconsAdmin.App`**: Aplicación moderna con diseño Fluent para Windows 11 (WinUI 3 / Windows App SDK) con soporte de arrastrar y soltar multicarpetas, monitor de progreso por lotes, diálogos modales `AppIconsDialog`, `AppStyleEditorDialog`, diálogo de reglas y un completo `SettingsDialog`.
 - **`installer/`**: Script oficial de empaquetado de Inno Setup 6 que genera el instalador oficial firmado único (`WindowsIconsAdmin_Setup.exe`).
 
 ---
@@ -147,12 +151,14 @@ El diseño e ingeniería de WindowsIconsAdmin bajo rigurosos estándares de Clea
 6. **Menús Contextuales en Windows 11:** El menú moderno de primer nivel requiere una DLL COM nativa en C++ que implemente `IExplorerCommand` con identidad de paquete. Los verbos de registro tradicionales (`HKCU\Software\Classes\Directory\shell`) permiten una integración inmediata sin privilegios en "Mostrar más opciones".
 7. **Refuerzo de Seguridad (Mark-of-the-Web):** El Explorador descarta iconos personalizados en carpetas marcadas con identificadores de Zona 3 (Internet) de NTFS para prevenir fugas de credenciales y ataques UNC.
 8. **Desacoplamiento Arquitectónico Cleanroom:** `WindowsIconsAdmin.Core` se diseñó con cero dependencias de UI o APIs de plataforma, imponiendo contratos congelados y pruebas unitarias aisladas que validan límites ReDoS, transacciones de deshacer hilo-seguras, codificación binaria multirresolución y protecciones de carpetas del sistema contra traversal e inyecciones.
+9. **Personalización No Destructiva de Accesos Directos de Aplicaciones:** Modificar recursos directamente en binarios PE (.exe) corrompe las firmas digitales Authenticode y activa alertas heurísticas de Antivirus o SmartScreen. WindowsIconsAdmin descubre los accesos directos (.lnk) del Menú Inicio y Escritorio, redirigiendo la ubicación del icono en IShellLink hacia archivos .ico limpios en la Caché Central sin alterar los ejecutables de destino, argumentos ni firmas digitales.
 
 Para consultar el análisis técnico detallado:
 - [Particularidades de Ingeniería del Shell de Windows e Iconos](docs/learning/windows-shell-and-icon-quirks.md)
 - [ADR 0001: Selección Arquitectónica de .NET 9 WinUI 3 y Cleanroom TDD](docs/adr/0001-winui3-dotnet-architecture.md)
 - [ADR 0002: Refuerzo de Seguridad de Carpetas del Sistema e INI](docs/adr/0002-system-folder-guard-and-ini-hardening.md)
 - [ADR 0003: Selector Multicarpetas y Motor de Reglas Persistente](docs/adr/0003-multi-folder-picker-and-persistent-rules-engine.md)
+- [ADR 0004: Estilización de Iconos de Aplicaciones y Objetivos LNK](docs/adr/0004-app-icon-styling-and-lnk-targets.md)
 
 ---
 
@@ -164,10 +170,12 @@ windows-icons-admin/
 │   ├── adr/
 │   │   ├── 0001-winui3-dotnet-architecture.md
 │   │   ├── 0002-system-folder-guard-and-ini-hardening.md
-│   │   └── 0003-multi-folder-picker-and-persistent-rules-engine.md
+│   │   ├── 0003-multi-folder-picker-and-persistent-rules-engine.md
+│   │   └── 0004-app-icon-styling-and-lnk-targets.md
 │   ├── audits/
 │   │   └── initial-core-audit.md
 │   ├── contracts/
+│   │   ├── app-icon-styling.contract.md
 │   │   ├── core-services.contract.md
 │   │   ├── safety-and-integrity.contract.md
 │   │   └── window-sizing.contract.md
@@ -177,18 +185,21 @@ windows-icons-admin/
 │   │   ├── windows-folder-icons-automation.md
 │   │   ├── windows-system-and-default-icons.md
 │   │   └── windows11-navigation-pane-and-drive-icons.md
-│   └── learning/
-│       ├── windows-shell-and-icon-quirks.md
-│       └── windows-shell-safety-and-integrity.md
+│   ├── learning/
+│   │   ├── windows-shell-and-icon-quirks.md
+│   │   └── windows-shell-safety-and-integrity.md
+│   └── research/
+│       └── app-icon-targets.md
 ├── installer/
 │   └── setup.iss          # Script de empaquetado Inno Setup
 ├── src/
 │   ├── WindowsIconsAdmin.App/
-│   │   ├── Dialogs/       # SettingsDialog, RulesDialog, SystemIconsDialog
+│   │   ├── Dialogs/       # SettingsDialog, RulesDialog, SystemIconsDialog, AppIconsDialog, AppStyleEditorDialog
 │   │   ├── Services/      # Diálogos y selectores de WinUI 3
-│   │   ├── ViewModels/    # Modelos MVVM y seguimiento de carpetas
+│   │   ├── ViewModels/    # Modelos MVVM y seguimiento de carpetas y apps
 │   │   └── Views/         # Páginas y controles de ventana de WinUI 3
 │   └── WindowsIconsAdmin.Core/
+│       ├── Apps/          # Descubrimiento, extracción y redirección de accesos directos
 │       ├── History/       # Historial de transacciones de deshacer
 │       ├── Imaging/       # Codificador ICO multirresolución con chunks verificados
 │       ├── Layout/        # Dimensionamiento de ventana y cálculo de DPI
@@ -196,9 +207,11 @@ windows-icons-admin/
 │       ├── Safety/        # Protección de carpetas del sistema y barreras de traversal
 │       ├── Settings/      # AppSettings persistente y servicio hilo-seguro
 │       ├── Shell/         # Helpers INI reforzados y servicios del Shell
-│       └── Storage/       # Servicio de almacenamiento de iconos central y portable
+│       ├── Storage/       # Servicio de almacenamiento de iconos central y portable
+│       └── Styling/       # Formas geométricas de contenedor y motor de estilización
 ├── tests/
 │   └── WindowsIconsAdmin.Core.Tests/
+│       ├── Apps/          # Pruebas de extracción y descubrimiento de accesos directos
 │       ├── Helpers/       # Validadores binarios de prueba para PNG e ICO
 │       ├── History/       # Pruebas de concurrencia y durabilidad de UndoStore
 │       ├── Imaging/       # Pruebas de píxeles y límites de chunk en IcoEncoder
@@ -206,7 +219,8 @@ windows-icons-admin/
 │       ├── Safety/        # Pruebas de SystemFolderGuard y path traversal
 │       ├── Settings/      # Pruebas de persistencia y autorrecuperación de AppSettingsService
 │       ├── Shell/         # Pruebas de IniHelper reforzado y ShellIconService
-│       └── Storage/       # Pruebas de IconStorageService y validación de rutas
+│       ├── Storage/       # Pruebas de IconStorageService y validación de rutas
+│       └── Styling/       # Pruebas de geometría, paleta cromática y renderizado en lienzo
 ├── README.md
 ├── README.es.md
 └── WindowsIconsAdmin.sln

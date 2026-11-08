@@ -100,8 +100,6 @@ public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
     private static RgbaCanvas CreateDiscordCanvas()
     {
         var canvas = new RgbaCanvas(64, 64);
-        var cx = 31.5;
-        var cy = 31.5;
         for (var y = 14; y < 50; y++)
         {
             for (var x = 12; x < 52; x++)

@@ -88,6 +88,6 @@ This document defines architecture invariants, development workflows, quality ga
 # Restore & build complete solution
 dotnet build WindowsIconsAdmin.sln -c Release
 
-# Execute Cleanroom test suite (188+ tests)
+# Execute Cleanroom test suite (100% passing / zero regressions)
 dotnet test tests/WindowsIconsAdmin.Core.Tests/WindowsIconsAdmin.Core.Tests.csproj
 ```
