@@ -85,24 +85,56 @@ public static class IconNormalizer
                 var p01 = source.GetPixel(x0, y1);
                 var p11 = source.GetPixel(x1, y1);
 
-                // Bilinear interpolation
-                var r = Interpolate(p00.R, p10.R, p01.R, p11.R, fx, fy);
-                var g = Interpolate(p00.G, p10.G, p01.G, p11.G, fx, fy);
-                var b = Interpolate(p00.B, p10.B, p01.B, p11.B, fx, fy);
-                var a = Interpolate(p00.A, p10.A, p01.A, p11.A, fx, fy);
+                // Alpha-weighted bilinear interpolation prevents dark halos around transparent borders
+                var a00 = p00.A / 255.0;
+                var a10 = p10.A / 255.0;
+                var a01 = p01.A / 255.0;
+                var a11 = p11.A / 255.0;
 
-                target.SetPixel(dstX + dx, dstY + dy, r, g, b, a);
+                var outA = Interpolate(a00, a10, a01, a11, fx, fy);
+                if (outA <= 0.001)
+                {
+                    target.SetPixel(dstX + dx, dstY + dy, 0, 0, 0, 0);
+                }
+                else
+                {
+                    var pr00 = p00.R * a00;
+                    var pr10 = p10.R * a10;
+                    var pr01 = p01.R * a01;
+                    var pr11 = p11.R * a11;
+
+                    var pg00 = p00.G * a00;
+                    var pg10 = p10.G * a10;
+                    var pg01 = p01.G * a01;
+                    var pg11 = p11.G * a11;
+
+                    var pb00 = p00.B * a00;
+                    var pb10 = p10.B * a10;
+                    var pb01 = p01.B * a01;
+                    var pb11 = p11.B * a11;
+
+                    var outR = Interpolate(pr00, pr10, pr01, pr11, fx, fy) / outA;
+                    var outG = Interpolate(pg00, pg10, pg01, pg11, fx, fy) / outA;
+                    var outB = Interpolate(pb00, pb10, pb01, pb11, fx, fy) / outA;
+
+                    target.SetPixel(
+                        dstX + dx,
+                        dstY + dy,
+                        (byte)Math.Clamp((int)Math.Round(outR), 0, 255),
+                        (byte)Math.Clamp((int)Math.Round(outG), 0, 255),
+                        (byte)Math.Clamp((int)Math.Round(outB), 0, 255),
+                        (byte)Math.Clamp((int)Math.Round(outA * 255.0), 0, 255));
+                }
             }
         }
 
         return target;
     }
 
-    private static byte Interpolate(byte v00, byte v10, byte v01, byte v11, double fx, double fy)
+    private static double Interpolate(double v00, double v10, double v01, double v11, double fx, double fy)
     {
         var top = v00 * (1.0 - fx) + v10 * fx;
         var bottom = v01 * (1.0 - fx) + v11 * fx;
-        var result = top * (1.0 - fy) + bottom * fy;
-        return (byte)Math.Clamp((int)Math.Round(result), 0, 255);
+        return top * (1.0 - fy) + bottom * fy;
     }
 }

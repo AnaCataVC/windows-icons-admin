@@ -27,6 +27,45 @@ public sealed record IconStyle(
             tintColor: null)
     );
 
+    public static IReadOnlyList<IconStyle> GetCuratedPresets() =>
+    [
+        new(
+            SchemaVersion: CurrentSchemaVersion,
+            Id: "style-dark-slate",
+            Name: "Dark Slate (Squircle)",
+            Container: new ContainerSpec(shape: ContainerShape.Squircle, backgroundColor: "#202024", padding: 0.16),
+            Treatment: new TreatmentSpec(saturation: 0.0, brightness: 0.0, contrast: 0.0)
+        ),
+        new(
+            SchemaVersion: CurrentSchemaVersion,
+            Id: "style-frosted-pearl",
+            Name: "Frosted Pearl (Squircle)",
+            Container: new ContainerSpec(shape: ContainerShape.Squircle, backgroundColor: "#F7F7F8", padding: 0.16),
+            Treatment: new TreatmentSpec(saturation: 0.0, brightness: 0.0, contrast: 0.0)
+        ),
+        new(
+            SchemaVersion: CurrentSchemaVersion,
+            Id: "style-nordic-slate",
+            Name: "Nordic Slate (Squircle)",
+            Container: new ContainerSpec(shape: ContainerShape.Squircle, backgroundColor: "#252B35", padding: 0.16),
+            Treatment: new TreatmentSpec(saturation: 0.0, brightness: 0.0, contrast: 0.0)
+        ),
+        new(
+            SchemaVersion: CurrentSchemaVersion,
+            Id: "style-deep-midnight",
+            Name: "Deep Midnight (Squircle)",
+            Container: new ContainerSpec(shape: ContainerShape.Squircle, backgroundColor: "#151922", padding: 0.16),
+            Treatment: new TreatmentSpec(saturation: 0.0, brightness: 0.0, contrast: 0.0)
+        ),
+        new(
+            SchemaVersion: CurrentSchemaVersion,
+            Id: "style-soft-lavender",
+            Name: "Soft Lavender (Squircle)",
+            Container: new ContainerSpec(shape: ContainerShape.Squircle, backgroundColor: "#E6DBFA", padding: 0.16),
+            Treatment: new TreatmentSpec(saturation: -0.15, brightness: 0.05, contrast: 0.0)
+        )
+    ];
+
     public string ToJson()
     {
         return JsonSerializer.Serialize(this, StyleJsonOptions);

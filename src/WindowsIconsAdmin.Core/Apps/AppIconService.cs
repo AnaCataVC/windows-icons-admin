@@ -89,13 +89,32 @@ public class AppIconService : IAppIconService
                 {
                     var (oldTarget, oldIconLoc, oldIconIdx) = _shortcutService.ReadShortcut(target.TargetPath);
 
+                    // If shortcut already points to a WindowsIconsAdmin rendered icon, preserve original location from undo store
+                    string? effectivePreviousLoc = oldIconLoc;
+                    int effectivePreviousIdx = oldIconIdx;
+
+                    if (!string.IsNullOrWhiteSpace(oldIconLoc) && oldIconLoc.Contains("WindowsIconsAdmin\\RenderedIcons", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var pastChange = _undoStore.GetAll()
+                            .SelectMany(b => b.Changes)
+                            .FirstOrDefault(c => c.TargetPath.Equals(target.TargetPath, StringComparison.OrdinalIgnoreCase) &&
+                                                 !string.IsNullOrWhiteSpace(c.PreviousIconLocation) &&
+                                                 !c.PreviousIconLocation.Contains("WindowsIconsAdmin\\RenderedIcons", StringComparison.OrdinalIgnoreCase));
+
+                        if (pastChange != null)
+                        {
+                            effectivePreviousLoc = pastChange.PreviousIconLocation;
+                            effectivePreviousIdx = pastChange.PreviousIconIndex;
+                        }
+                    }
+
                     // Backup original icon if not already snapshotted
                     string? snapshotPath = null;
-                    if (!_snapshotStore.SnapshotExists(app.Id) && !string.IsNullOrWhiteSpace(oldIconLoc) && File.Exists(oldIconLoc))
+                    if (!_snapshotStore.SnapshotExists(app.Id) && !string.IsNullOrWhiteSpace(effectivePreviousLoc) && File.Exists(effectivePreviousLoc))
                     {
                         try
                         {
-                            var oldBytes = File.ReadAllBytes(oldIconLoc);
+                            var oldBytes = File.ReadAllBytes(effectivePreviousLoc);
                             snapshotPath = _snapshotStore.SaveSnapshot(app.Id, oldBytes);
                         }
                         catch
@@ -111,8 +130,8 @@ public class AppIconService : IAppIconService
                         AppDisplayName: app.DisplayName,
                         TargetPath: target.TargetPath,
                         TargetType: target.TargetType,
-                        PreviousIconLocation: oldIconLoc,
-                        PreviousIconIndex: oldIconIdx,
+                        PreviousIconLocation: effectivePreviousLoc,
+                        PreviousIconIndex: effectivePreviousIdx,
                         OriginalSnapshotPath: snapshotPath,
                         AppliedIconPath: iconFilePath,
                         TimestampUtc: DateTimeOffset.UtcNow));
@@ -162,7 +181,6 @@ public class AppIconService : IAppIconService
     public bool RevertBatch(string batchId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(batchId);
-
         var batch = _undoStore.GetAll().FirstOrDefault(b => b.BatchId == batchId);
         if (batch == null || batch.Reverted) return false;
 
@@ -178,7 +196,8 @@ public class AppIconService : IAppIconService
 
     public int RevertAll()
     {
-        var all = _undoStore.GetAll().Where(b => !b.Reverted).ToList();
+        // Revert in reverse chronological order so earliest original icon wins
+        var all = _undoStore.GetAll().Where(b => !b.Reverted).Reverse().ToList();
         var revertedCount = 0;
 
         foreach (var batch in all)
@@ -204,7 +223,8 @@ public class AppIconService : IAppIconService
         ArgumentException.ThrowIfNullOrWhiteSpace(appId);
 
         var anyReverted = false;
-        var all = _undoStore.GetAll().Where(b => !b.Reverted).ToList();
+        // Revert in reverse chronological order
+        var all = _undoStore.GetAll().Where(b => !b.Reverted).Reverse().ToList();
 
         foreach (var batch in all)
         {
@@ -248,54 +268,36 @@ public class AppIconService : IAppIconService
 
     private static void NotifyShortcutUpdated(string shortcutPath)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        try
         {
-            try
-            {
-                NativeMethods.SHChangeNotify(
-                    NativeMethods.SHCNE_UPDATEITEM,
-                    NativeMethods.SHCNF_PATHW,
-                    shortcutPath,
-                    IntPtr.Zero);
-            }
-            catch
-            {
-                // Suppress on non-shell context
-            }
+            SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, shortcutPath, IntPtr.Zero);
+        }
+        catch
+        {
+            // Best effort notification
         }
     }
 
     private static void NotifyShellAssociationChanged()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        try
         {
-            try
-            {
-                NativeMethods.SHChangeNotify(
-                    NativeMethods.SHCNE_ASSOCCHANGED,
-                    NativeMethods.SHCNF_IDLIST | NativeMethods.SHCNF_FLUSHNOWAIT,
-                    IntPtr.Zero,
-                    IntPtr.Zero);
-            }
-            catch
-            {
-                // Suppress
-            }
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero);
+        }
+        catch
+        {
+            // Best effort notification
         }
     }
 
-    private static class NativeMethods
-    {
-        public const uint SHCNE_UPDATEITEM = 0x00002000;
-        public const uint SHCNE_ASSOCCHANGED = 0x08000000;
-        public const uint SHCNF_IDLIST = 0x0000;
-        public const uint SHCNF_PATHW = 0x0005;
-        public const uint SHCNF_FLUSHNOWAIT = 0x2000;
+    private const uint SHCNE_UPDATEITEM = 0x00002000;
+    private const uint SHCNE_ASSOCCHANGED = 0x08000000;
+    private const uint SHCNF_PATHW = 0x0005;
+    private const uint SHCNF_IDLIST = 0x0000;
 
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-        public static extern void SHChangeNotify(uint wEventId, uint uFlags, [MarshalAs(UnmanagedType.LPWStr)] string? dwItem1, IntPtr dwItem2);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
 
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-        public static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
-    }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern void SHChangeNotify(uint wEventId, uint uFlags, [MarshalAs(UnmanagedType.LPWStr)] string pszPath, IntPtr dwItem2);
 }

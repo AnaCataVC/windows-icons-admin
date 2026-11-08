@@ -12,6 +12,7 @@ public sealed partial class SystemIconsDialog : ContentDialog
 {
     private readonly ShellIconService _shellService;
     private readonly IconStorageService _storageService;
+    private readonly bool _isInitialized;
 
     public SystemIconsDialog(ShellIconService shellService, IconStorageService storageService)
     {
@@ -19,6 +20,7 @@ public sealed partial class SystemIconsDialog : ContentDialog
         _shellService = shellService;
         _storageService = storageService;
 
+        _isInitialized = true;
         RefreshAllStatuses();
         PopulateSpecialFolders();
     }
@@ -445,6 +447,7 @@ public sealed partial class SystemIconsDialog : ContentDialog
 
     private void OnMachineWideCheckboxChanged(object sender, RoutedEventArgs e)
     {
+        if (!_isInitialized) return;
         RefreshAllStatuses();
     }
 

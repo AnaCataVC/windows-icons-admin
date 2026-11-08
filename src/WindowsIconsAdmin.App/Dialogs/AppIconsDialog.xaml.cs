@@ -30,7 +30,7 @@ public sealed partial class AppIconsDialog : ContentDialog
         _appIconService = appIconService ?? new AppIconService();
         _styleStore = styleStore ?? new StyleStore();
 
-        _availableStyles = _styleStore.GetAll().ToList();
+        _availableStyles = _styleStore.GetAllWithPresets().ToList();
         _currentStyle = _availableStyles.FirstOrDefault() ?? IconStyle.CreateDefault();
 
         LoadStylesIntoUi();
@@ -134,11 +134,28 @@ public sealed partial class AppIconsDialog : ContentDialog
         {
             XamlRoot = this.XamlRoot
         };
-        await editor.ShowAsync();
 
-        _availableStyles.Clear();
-        _availableStyles.AddRange(_styleStore.GetAll());
-        LoadStylesIntoUi();
+        // WinUI 3 invariant: Only one ContentDialog can be open at a time.
+        // Hide self, show editor, then restore self.
+        this.Hide();
+        try
+        {
+            await editor.ShowAsync();
+            _currentStyle = editor.CurrentStyle;
+        }
+        finally
+        {
+            _availableStyles.Clear();
+            _availableStyles.AddRange(_styleStore.GetAllWithPresets());
+            LoadStylesIntoUi();
+
+            foreach (var item in _allAppItems)
+            {
+                item.UpdatePreview(_currentStyle);
+            }
+
+            _ = this.ShowAsync();
+        }
     }
 
     private async void OnScanAppsClick(object sender, RoutedEventArgs e)

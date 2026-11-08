@@ -7,7 +7,7 @@ namespace WindowsIconsAdmin.Core.Styling;
 public static class IconStyleRenderer
 {
     public const int DefaultCanvasSize = 256;
-    public const int RendererVersion = 1;
+    public const int RendererVersion = 2;
 
     public static RgbaCanvas ApplyTreatment(RgbaCanvas source, TreatmentSpec treatment)
     {
@@ -53,17 +53,19 @@ public static class IconStyleRenderer
             // 3. Contrast
             if (con != 0.0)
             {
-                r = ((r / 255.0 - 0.5) * factor + 0.5) * 255.0;
-                g = ((g / 255.0 - 0.5) * factor + 0.5) * 255.0;
-                b = ((b / 255.0 - 0.5) * factor + 0.5) * 255.0;
+                r = (r - 128.0) * factor + 128.0;
+                g = (g - 128.0) * factor + 128.0;
+                b = (b - 128.0) * factor + 128.0;
             }
 
-            // 4. Optional tint (gentle 15% blend)
+            // 4. Tint
             if (hasTint)
             {
-                r = r * 0.85 + tintR * 0.15;
-                g = g * 0.85 + tintG * 0.15;
-                b = b * 0.85 + tintB * 0.15;
+                var y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                var lum = y / 255.0;
+                r = tintR * lum;
+                g = tintG * lum;
+                b = tintB * lum;
             }
 
             result.Pixels[i] = (byte)Math.Clamp((int)Math.Round(r), 0, 255);
@@ -74,7 +76,7 @@ public static class IconStyleRenderer
         return result;
     }
 
-    public static RgbaCanvas RenderContainer(int size, ContainerSpec container)
+    public static RgbaCanvas RenderContainer(int size, ContainerSpec container, bool enableEffects = false)
     {
         ArgumentNullException.ThrowIfNull(container);
         if (size <= 0) throw new ArgumentOutOfRangeException(nameof(size), "Size must be positive.");
@@ -84,19 +86,31 @@ public static class IconStyleRenderer
 
         var cx = (size - 1) / 2.0;
         var cy = (size - 1) / 2.0;
-        var r = size / 2.0;
-        var cornerRadius = size * 0.225;
+        // In effects mode, shrink by 4% so the icon breathes nicely in Explorer
+        var rad = enableEffects ? size * 0.46 : size / 2.0;
+        var cornerRadius = enableEffects ? (size * 0.92) * 0.225 : size * 0.225;
 
         // Subpixel sampling 4x4 grid (16 samples per pixel) for deterministic anti-aliasing
         const int samples = 4;
         const double step = 1.0 / samples;
         const double sampleWeight = 1.0 / (samples * samples);
 
+        var innerRad = rad - Math.Max(1.2, size * 0.012);
+        bool isLightBg = (0.2126 * bgR + 0.7152 * bgG + 0.0722 * bgB) > 180;
+        byte rimTarget = isLightBg ? (byte)160 : (byte)255;
+
         for (var y = 0; y < size; y++)
         {
+            // Subtle top-to-bottom lighting gradient (+6% at top, -6% at bottom)
+            double vFactor = enableEffects ? 1.0 + 0.06 * (1.0 - 2.0 * (y / (double)(size - 1))) : 1.0;
+            byte gradR = (byte)Math.Clamp((int)Math.Round(bgR * vFactor), 0, 255);
+            byte gradG = (byte)Math.Clamp((int)Math.Round(bgG * vFactor), 0, 255);
+            byte gradB = (byte)Math.Clamp((int)Math.Round(bgB * vFactor), 0, 255);
+
             for (var x = 0; x < size; x++)
             {
                 var insideCount = 0;
+                var insideInnerCount = 0;
 
                 for (var sy = 0; sy < samples; sy++)
                 {
@@ -108,13 +122,27 @@ public static class IconStyleRenderer
 
                         var inside = container.Shape switch
                         {
-                            ContainerShape.Squircle => IsInsideSquircle(px, py, cx, cy, r),
-                            ContainerShape.RoundedSquare => IsInsideRoundedSquare(px, py, size, cornerRadius),
-                            ContainerShape.Circle => IsInsideCircle(px, py, cx, cy, r),
+                            ContainerShape.Squircle => IsInsideSquircle(px, py, cx, cy, rad),
+                            ContainerShape.RoundedSquare => IsInsideRoundedSquare(px, py, size, cornerRadius, cx, cy, rad, enableEffects),
+                            ContainerShape.Circle => IsInsideCircle(px, py, cx, cy, rad),
                             _ => true
                         };
 
-                        if (inside) insideCount++;
+                        if (inside)
+                        {
+                            insideCount++;
+                            if (enableEffects)
+                            {
+                                var insideInner = container.Shape switch
+                                {
+                                    ContainerShape.Squircle => IsInsideSquircle(px, py, cx, cy, innerRad),
+                                    ContainerShape.RoundedSquare => IsInsideRoundedSquare(px, py, size, cornerRadius - 1.2, cx, cy, innerRad, enableEffects),
+                                    ContainerShape.Circle => IsInsideCircle(px, py, cx, cy, innerRad),
+                                    _ => true
+                                };
+                                if (insideInner) insideInnerCount++;
+                            }
+                        }
                     }
                 }
 
@@ -122,12 +150,103 @@ public static class IconStyleRenderer
                 {
                     var coverage = insideCount * sampleWeight;
                     var finalAlpha = (byte)Math.Clamp((int)Math.Round(bgA * coverage), 0, 255);
-                    canvas.SetPixel(x, y, bgR, bgG, bgB, finalAlpha);
+
+                    if (enableEffects)
+                    {
+                        double outerCov = insideCount * sampleWeight;
+                        double innerCov = insideInnerCount * sampleWeight;
+                        double rimCov = Math.Clamp(outerCov - innerCov, 0.0, 1.0);
+
+                        double rimLight = y < size / 2 ? 0.22 : 0.08;
+                        double rimStrength = isLightBg ? 0.25 : rimLight;
+
+                        byte outR = (byte)Math.Clamp((int)Math.Round(gradR * (1.0 - rimCov * rimStrength) + rimTarget * (rimCov * rimStrength)), 0, 255);
+                        byte outG = (byte)Math.Clamp((int)Math.Round(gradG * (1.0 - rimCov * rimStrength) + rimTarget * (rimCov * rimStrength)), 0, 255);
+                        byte outB = (byte)Math.Clamp((int)Math.Round(gradB * (1.0 - rimCov * rimStrength) + rimTarget * (rimCov * rimStrength)), 0, 255);
+
+                        canvas.SetPixel(x, y, outR, outG, outB, finalAlpha);
+                    }
+                    else
+                    {
+                        canvas.SetPixel(x, y, bgR, bgG, bgB, finalAlpha);
+                    }
                 }
             }
         }
 
         return canvas;
+    }
+
+    public static RgbaCanvas AddGlyphDropShadow(RgbaCanvas foreground)
+    {
+        ArgumentNullException.ThrowIfNull(foreground);
+        int w = foreground.Width;
+        int h = foreground.Height;
+        int offsetY = Math.Max(1, h / 42);
+        int radius = Math.Max(2, h / 32);
+
+        var shadowAlpha = new double[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int sy = y - offsetY;
+                if (sy >= 0 && sy < h)
+                {
+                    shadowAlpha[y * w + x] = foreground.GetPixel(x, sy).A / 255.0;
+                }
+            }
+        }
+
+        var temp = new double[w * h];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    double sum = 0;
+                    int count = 0;
+                    for (int k = -radius; k <= radius; k++)
+                    {
+                        int nx = Math.Clamp(x + k, 0, w - 1);
+                        sum += shadowAlpha[y * w + nx];
+                        count++;
+                    }
+                    temp[y * w + x] = sum / count;
+                }
+            }
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    double sum = 0;
+                    int count = 0;
+                    for (int k = -radius; k <= radius; k++)
+                    {
+                        int ny = Math.Clamp(y + k, 0, h - 1);
+                        sum += temp[ny * w + x];
+                        count++;
+                    }
+                    shadowAlpha[y * w + x] = sum / count;
+                }
+            }
+        }
+
+        var shadowCanvas = new RgbaCanvas(w, h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                byte sa = (byte)Math.Clamp((int)Math.Round(shadowAlpha[y * w + x] * 70.0), 0, 255);
+                if (sa > 0)
+                {
+                    shadowCanvas.SetPixel(x, y, 0, 0, 0, sa);
+                }
+            }
+        }
+
+        return Composite(shadowCanvas, foreground);
     }
 
     public static RgbaCanvas Composite(RgbaCanvas background, RgbaCanvas foreground)
@@ -171,7 +290,7 @@ public static class IconStyleRenderer
         return result;
     }
 
-    public static RgbaCanvas Render(RgbaCanvas source, IconStyle style, int canvasSize = DefaultCanvasSize)
+    public static RgbaCanvas Render(RgbaCanvas source, IconStyle style, int canvasSize = DefaultCanvasSize, bool enableEffects = true)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(style);
@@ -182,11 +301,14 @@ public static class IconStyleRenderer
         // 2. Treatment
         var treated = ApplyTreatment(normalized, style.Treatment);
 
-        // 3. Container
-        var container = RenderContainer(canvasSize, style.Container);
+        // 3. Drop shadow
+        var foreground = enableEffects ? AddGlyphDropShadow(treated) : treated;
 
-        // 4. Composite
-        return Composite(container, treated);
+        // 4. Container
+        var container = RenderContainer(canvasSize, style.Container, enableEffects: enableEffects);
+
+        // 5. Composite
+        return Composite(container, foreground);
     }
 
     public static string ComputeCacheKey(byte[] sourceBytes, IconStyle style)
@@ -214,22 +336,49 @@ public static class IconStyleRenderer
         return (dx * dx + dy * dy) <= (r * r);
     }
 
-    private static bool IsInsideRoundedSquare(double px, double py, int size, double cornerRadius)
+    private static bool IsInsideRoundedSquare(double px, double py, int size, double cornerRadius, double cx, double cy, double r, bool enableEffects)
     {
-        if (px < 0 || px >= size || py < 0 || py >= size) return false;
+        if (enableEffects)
+        {
+            var left = cx - r;
+            var right = cx + r;
+            var top = cy - r;
+            var bottom = cy + r;
 
-        var min = cornerRadius;
-        var max = size - cornerRadius;
+            if (px < left || px > right || py < top || py > bottom) return false;
 
-        if (px >= min && px <= max) return true;
-        if (py >= min && py <= max) return true;
+            var minX = left + cornerRadius;
+            var maxX = right - cornerRadius;
+            var minY = top + cornerRadius;
+            var maxY = bottom - cornerRadius;
 
-        var cornerX = px < min ? min : max;
-        var cornerY = py < min ? min : max;
+            if (px >= minX && px <= maxX) return true;
+            if (py >= minY && py <= maxY) return true;
 
-        var dx = px - cornerX;
-        var dy = py - cornerY;
-        return (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+            var cornerX = px < minX ? minX : maxX;
+            var cornerY = py < minY ? minY : maxY;
+
+            var dx = px - cornerX;
+            var dy = py - cornerY;
+            return (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+        }
+        else
+        {
+            if (px < 0 || px >= size || py < 0 || py >= size) return false;
+
+            var min = cornerRadius;
+            var max = size - cornerRadius;
+
+            if (px >= min && px <= max) return true;
+            if (py >= min && py <= max) return true;
+
+            var cornerX = px < min ? min : max;
+            var cornerY = py < min ? min : max;
+
+            var dx = px - cornerX;
+            var dy = py - cornerY;
+            return (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+        }
     }
 
     private static (byte R, byte G, byte B, byte A) ParseColorRgba(string hex)

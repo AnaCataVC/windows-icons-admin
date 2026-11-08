@@ -8,6 +8,16 @@ public class AppDiscoveryService : IAppDiscoveryService
     private readonly IShortcutService _shortcutService;
     private readonly IReadOnlyList<string>? _customSearchPaths;
 
+    private static readonly HashSet<string> IgnoredExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".chm", ".htm", ".html", ".url", ".pdf", ".txt", ".md", ".rtf", ".doc", ".docx"
+    };
+
+    private static readonly HashSet<string> SharedHostExecutables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "chrome_proxy.exe", "msedge_proxy.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "wt.exe", "rundll32.exe"
+    };
+
     public AppDiscoveryService(IShortcutService? shortcutService = null, IReadOnlyList<string>? customSearchPaths = null)
     {
         _shortcutService = shortcutService ?? new WindowsShortcutService();
@@ -42,15 +52,18 @@ public class AppDiscoveryService : IAppDiscoveryService
         }
 
         var apps = new List<InstalledApp>();
-        var seenAppIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (shortcutPath, targetType, supportStatus) in rawTargets)
         {
             try
             {
                 var (targetPath, iconLoc, iconIdx) = _shortcutService.ReadShortcut(shortcutPath);
+
+                // Filter out non-app targets (directories or document links)
+                if (IsNonAppTarget(targetPath)) continue;
+
                 var displayName = CleanDisplayName(Path.GetFileNameWithoutExtension(shortcutPath));
-                var appId = ComputeAppId(targetPath, shortcutPath);
+                var appId = ComputeAppId(targetPath, shortcutPath, displayName, iconLoc);
 
                 var target = new IconTarget(
                     TargetType: targetType,
@@ -86,6 +99,19 @@ public class AppDiscoveryService : IAppDiscoveryService
         }
 
         return apps.OrderBy(a => a.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    private static bool IsNonAppTarget(string? targetPath)
+    {
+        if (string.IsNullOrWhiteSpace(targetPath)) return false;
+        var expanded = Environment.ExpandEnvironmentVariables(targetPath.Trim('"', ' '));
+
+        if (Directory.Exists(expanded)) return true;
+
+        var ext = Path.GetExtension(expanded);
+        if (!string.IsNullOrEmpty(ext) && IgnoredExtensions.Contains(ext)) return true;
+
+        return false;
     }
 
     private List<(string Path, IconTargetType TargetType, AppSupportStatus SupportStatus)> GetDiscoveryLocations()
@@ -150,9 +176,25 @@ public class AppDiscoveryService : IAppDiscoveryService
                lower.Contains("leeme");
     }
 
-    private static string ComputeAppId(string targetPath, string shortcutPath)
+    private static string ComputeAppId(string? targetPath, string shortcutPath, string displayName, string? iconLoc)
     {
-        var seed = !string.IsNullOrWhiteSpace(targetPath) ? targetPath.ToLowerInvariant() : shortcutPath.ToLowerInvariant();
+        var exeName = !string.IsNullOrWhiteSpace(targetPath) ? Path.GetFileName(targetPath.Trim('"', ' ')) : string.Empty;
+        string seed;
+
+        if (!string.IsNullOrWhiteSpace(exeName) && SharedHostExecutables.Contains(exeName))
+        {
+            // For shared hosts like chrome_proxy.exe, include displayName and iconLoc to avoid collision
+            seed = $"{targetPath?.ToLowerInvariant()}|{displayName.ToLowerInvariant()}|{iconLoc?.ToLowerInvariant()}";
+        }
+        else if (!string.IsNullOrWhiteSpace(targetPath))
+        {
+            seed = targetPath.ToLowerInvariant();
+        }
+        else
+        {
+            seed = shortcutPath.ToLowerInvariant();
+        }
+
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
         return $"app-{hash[..12]}";
     }

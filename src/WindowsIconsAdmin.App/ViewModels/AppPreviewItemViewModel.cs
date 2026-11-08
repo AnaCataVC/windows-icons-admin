@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml.Media.Imaging;
+using WindowsIconsAdmin.Core.Apps;
 using WindowsIconsAdmin.Core.Styling;
 using WindowsIconsAdmin_App.Services;
 
@@ -9,40 +10,96 @@ namespace WindowsIconsAdmin_App.ViewModels;
 public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
 {
     private WriteableBitmap? _styledImageSource;
+    private WriteableBitmap? _originalImageSource;
 
-    public string DisplayName { get; }
+    public string AppName { get; }
+    public string DisplayName => AppName;
     public RgbaCanvas OriginalCanvas { get; }
-    public WriteableBitmap OriginalImageSource { get; }
 
     public WriteableBitmap? StyledImageSource
     {
         get => _styledImageSource;
         private set
         {
-            if (!ReferenceEquals(_styledImageSource, value))
-            {
-                _styledImageSource = value;
-                OnPropertyChanged();
-            }
+            _styledImageSource = value;
+            OnPropertyChanged();
         }
     }
 
-    public AppPreviewItemViewModel(string displayName, RgbaCanvas originalCanvas, IconStyle initialStyle)
+    public WriteableBitmap? OriginalImageSource
     {
-        DisplayName = displayName;
-        OriginalCanvas = originalCanvas;
-        OriginalImageSource = RgbaImageHelper.ToWriteableBitmap(originalCanvas);
-        UpdateStyled(initialStyle);
+        get => _originalImageSource;
+        private set
+        {
+            _originalImageSource = value;
+            OnPropertyChanged();
+        }
     }
 
-    public void UpdateStyled(IconStyle style)
+    public AppPreviewItemViewModel(string appName, RgbaCanvas originalCanvas, IconStyle currentStyle)
     {
-        var styledCanvas = IconStyleRenderer.Render(OriginalCanvas, style, canvasSize: 128);
+        AppName = appName;
+        OriginalCanvas = originalCanvas;
+        OriginalImageSource = RgbaImageHelper.ToWriteableBitmap(originalCanvas);
+        UpdateStyle(currentStyle);
+    }
+
+    public void UpdateStyle(IconStyle style)
+    {
+        var styledCanvas = IconStyleRenderer.Render(OriginalCanvas, style, canvasSize: 128, enableEffects: true);
         StyledImageSource = RgbaImageHelper.ToWriteableBitmap(styledCanvas);
     }
 
+    public void UpdateStyled(IconStyle style) => UpdateStyle(style);
+
     public static List<AppPreviewItemViewModel> CreateSampleApps(IconStyle style)
     {
+        // Try discovering real apps from Start Menu to showcase actual icons
+        try
+        {
+            var discovery = new AppDiscoveryService();
+            var realApps = discovery.DiscoverInstalledApps();
+
+            var preferredNames = new[] { "Visual Studio Code", "Code", "Discord", "Spotify", "Google Chrome", "Chrome", "Firefox", "Terminal", "Windows Terminal", "Android Studio", "Antigravity", "Access" };
+            var selectedSamples = new List<AppPreviewItemViewModel>();
+
+            foreach (var pref in preferredNames)
+            {
+                var match = realApps.FirstOrDefault(a => a.DisplayName.Contains(pref, StringComparison.OrdinalIgnoreCase));
+                if (match != null && !selectedSamples.Any(s => s.AppName.Equals(match.DisplayName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var canvas = AppIconExtractor.ExtractAppIcon(match, unboxWhitePlate: true);
+                    selectedSamples.Add(new AppPreviewItemViewModel(match.DisplayName, canvas, style));
+                    if (selectedSamples.Count >= 5) break;
+                }
+            }
+
+            if (selectedSamples.Count >= 3)
+            {
+                return selectedSamples;
+            }
+
+            // Fill with first available real apps
+            foreach (var app in realApps)
+            {
+                if (!selectedSamples.Any(s => s.AppName.Equals(app.DisplayName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var canvas = AppIconExtractor.ExtractAppIcon(app, unboxWhitePlate: true);
+                    selectedSamples.Add(new AppPreviewItemViewModel(app.DisplayName, canvas, style));
+                    if (selectedSamples.Count >= 5) break;
+                }
+            }
+
+            if (selectedSamples.Count > 0)
+            {
+                return selectedSamples;
+            }
+        }
+        catch
+        {
+            // Fallback below
+        }
+
         return
         [
             new AppPreviewItemViewModel("Spotify", CreateSpotifyCanvas(), style),
@@ -65,12 +122,10 @@ public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
                 var d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
                 if (d2 <= 26 * 26)
                 {
-                    // Green disk #1ED760
                     canvas.SetPixel(x, y, 30, 215, 96, 255);
                 }
             }
         }
-        // Black wave lines
         for (var x = 18; x < 46; x++)
         {
             canvas.SetPixel(x, 24, 0, 0, 0, 255);
@@ -89,7 +144,6 @@ public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
             {
                 if ((x + y > 35) && (x - y < 25))
                 {
-                    // Azure Blue #007ACC
                     canvas.SetPixel(x, y, 0, 122, 204, 255);
                 }
             }
@@ -104,15 +158,8 @@ public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
         {
             for (var x = 12; x < 52; x++)
             {
-                // Blurple #5865F2
                 canvas.SetPixel(x, y, 88, 101, 242, 255);
             }
-        }
-        // White eyes
-        for (var y = 28; y < 36; y++)
-        {
-            for (var x = 20; x < 26; x++) canvas.SetPixel(x, y, 255, 255, 255, 255);
-            for (var x = 38; x < 44; x++) canvas.SetPixel(x, y, 255, 255, 255, 255);
         }
         return canvas;
     }
@@ -127,15 +174,11 @@ public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
             for (var x = 0; x < 64; x++)
             {
                 var d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-                if (d2 <= 26 * 26 && d2 > 10 * 10)
+                if (d2 <= 24 * 24)
                 {
-                    if (y < 32 && x > 24) canvas.SetPixel(x, y, 234, 67, 53, 255);      // Red
-                    else if (x <= 32) canvas.SetPixel(x, y, 52, 168, 83, 255);           // Green
-                    else canvas.SetPixel(x, y, 251, 188, 4, 255);                        // Yellow
-                }
-                else if (d2 <= 10 * 10)
-                {
-                    canvas.SetPixel(x, y, 66, 133, 244, 255);                            // Blue center
+                    if (y < 25) canvas.SetPixel(x, y, 234, 67, 53, 255);
+                    else if (x > 32) canvas.SetPixel(x, y, 251, 188, 5, 255);
+                    else canvas.SetPixel(x, y, 52, 168, 83, 255);
                 }
             }
         }
@@ -145,23 +188,17 @@ public sealed class AppPreviewItemViewModel : INotifyPropertyChanged
     private static RgbaCanvas CreateTerminalCanvas()
     {
         var canvas = new RgbaCanvas(64, 64);
-        for (var y = 14; y < 50; y++)
+        for (var y = 10; y < 54; y++)
         {
-            for (var x = 12; x < 52; x++)
+            for (var x = 8; x < 56; x++)
             {
-                // Dark slate background #1E1E1E
-                canvas.SetPixel(x, y, 30, 30, 30, 255);
+                canvas.SetPixel(x, y, 12, 12, 12, 255);
             }
         }
-        // Green prompt >_
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < 10; i++)
         {
-            canvas.SetPixel(20 + i, 28 + i, 0, 255, 120, 255);
-            canvas.SetPixel(20 + i, 40 - i, 0, 255, 120, 255);
-        }
-        for (var x = 30; x < 38; x++)
-        {
-            canvas.SetPixel(x, 40, 0, 255, 120, 255);
+            canvas.SetPixel(16 + i, 24 + i, 255, 255, 255, 255);
+            canvas.SetPixel(16 + i, 42 - i, 255, 255, 255, 255);
         }
         return canvas;
     }

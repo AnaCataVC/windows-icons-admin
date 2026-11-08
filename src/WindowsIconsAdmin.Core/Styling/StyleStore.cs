@@ -97,6 +97,24 @@ public class StyleStore
         return results.AsReadOnly();
     }
 
+    public IReadOnlyList<IconStyle> GetAllWithPresets()
+    {
+        var existing = GetAll().ToList();
+        var seenIds = new HashSet<string>(existing.Select(s => s.Id), StringComparer.OrdinalIgnoreCase);
+
+        var presets = IconStyle.GetCuratedPresets();
+        foreach (var preset in presets)
+        {
+            if (!seenIds.Contains(preset.Id))
+            {
+                existing.Add(preset);
+                seenIds.Add(preset.Id);
+            }
+        }
+
+        return existing.AsReadOnly();
+    }
+
     public bool Delete(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
