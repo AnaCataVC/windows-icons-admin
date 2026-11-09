@@ -28,13 +28,12 @@ This document defines architecture invariants, development workflows, quality ga
 > Every release published on GitHub **MUST ALWAYS** publish **ONLY** the official Inno Setup installer executable:
 > ```text
 > WindowsIconsAdmin_Setup.exe
-> WindowsIconsAdmin_Setup.exe.sha256
 > ```
-> *(or `WindowsIconsAdmin_Setup-vX.Y.Z.exe` if versioned by the build script).*
-> - **Automated Release via CI/CD**: Pushing a tag (`git tag vX.Y.Z && git push origin vX.Y.Z`) triggers `.github/workflows/release.yml` on `windows-latest`. The workflow runs core tests, publishes the self-contained WinUI 3 app, packages the installer with Inno Setup (`/DMyAppVersion=X.Y.Z`), generates `.sha256`, and publishes the GitHub Release.
+> *(or `WindowsIconsAdmin_Setup-vX.Y.Z.exe` if versioned by the build script; GitHub natively calculates and displays the SHA-256 digest on the web UI).*
+> - **Automated Release via CI/CD**: Pushing a tag (`git tag vX.Y.Z && git push origin vX.Y.Z`) triggers `.github/workflows/release.yml` on `windows-latest`. The workflow runs core tests, publishes the self-contained WinUI 3 app, packages the installer with Inno Setup (`/DMyAppVersion=X.Y.Z`), and publishes the GitHub Release.
 > - **Inno Setup Macro Standard**: `installer/setup.iss` MUST define `MyAppVersion` within `#ifndef MyAppVersion` so CI CLI arguments override the version dynamically without file mutations.
-> - **Strict Prohibition on Extra Assets**: NEVER publish standalone portable executables (`.exe`), unpackaged binaries (`dist/win-x64/*`), or compressed archives (`.zip`) as GitHub Release assets. Production binaries compiled during `dotnet publish` exist strictly to be packaged into the Setup installer by Inno Setup, never as independent downloads.
-> - **Verification Gate**: Any release workflow or release agent (`ami-release-manager`) must verify with `gh release view <tag> --json assets` that only the Setup installer executable and its `.sha256` hash are uploaded. Releases containing portable/zip files or lacking the Setup executable are strictly non-compliant.
+> - **Strict Prohibition on Extra Assets**: NEVER publish standalone portable executables (`.exe`), unpackaged binaries (`dist/win-x64/*`), compressed archives (`.zip`), or auxiliary checksum text files (`.sha256`) as GitHub Release assets. Production binaries compiled during `dotnet publish` exist strictly to be packaged into the Setup installer by Inno Setup, never as independent downloads.
+> - **Verification Gate**: Any release workflow or release agent (`ami-release-manager`) must verify with `gh release view <tag> --json assets` that exactly 1 asset exists: `WindowsIconsAdmin_Setup.exe`. Releases containing portable/zip/checksum files or lacking the Setup executable are strictly non-compliant.
 
 ### Packaging Pipeline Specification
 1. **Version Bump Order**: Bump the version in:
@@ -54,7 +53,6 @@ This document defines architecture invariants, development workflows, quality ga
    - Compile Inno Setup Installer:
      ```powershell
      & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /DMyAppVersion=X.Y.Z installer/setup.iss
-     Get-FileHash releases\WindowsIconsAdmin_Setup.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $($_.Path | Split-Path -Leaf)" } | Out-File -Encoding ascii releases\WindowsIconsAdmin_Setup.exe.sha256
      ```
 4. **Local Cleanliness**: Purge local `releases/` directory post-upload to avoid disk clutter.
 
