@@ -11,6 +11,8 @@ public sealed partial class SettingsDialog : ContentDialog
     private readonly AppSettingsService _settingsService;
     private readonly IconStorageService _storageService;
 
+    public bool OpenBatchAppearanceRequested { get; private set; }
+
     public SettingsDialog(AppSettingsService settingsService, IconStorageService storageService)
     {
         InitializeComponent();
@@ -20,6 +22,12 @@ public sealed partial class SettingsDialog : ContentDialog
         EnablePortableModeToggle.IsOn = _settingsService.Current.EnablePortableMode;
         PortableWarningInfoBar.IsOpen = _settingsService.Current.EnablePortableMode;
         CachePathTextBlock.Text = _storageService.CentralCacheDirectory;
+    }
+
+    private void OnOpenBatchAppearanceClick(object sender, RoutedEventArgs e)
+    {
+        OpenBatchAppearanceRequested = true;
+        Hide();
     }
 
     private void OnPortableModeToggled(object sender, RoutedEventArgs e)

@@ -37,12 +37,7 @@
                     <FontIcon Glyph="&#xE770;" />
                 </AppBarButton.Icon>
             </AppBarButton>
-            <AppBarButton Label="Iconos de apps" Click="OnAppStylesClick" ToolTipService.ToolTip="Personalizar iconos de aplicaciones instaladas">
-                <AppBarButton.Icon>
-                    <FontIcon Glyph="&#xE790;" />
-                </AppBarButton.Icon>
-            </AppBarButton>
-            <AppBarButton Icon="Setting" Label="Configuración" Click="OnSettingsClick" ToolTipService.ToolTip="Ajustes de almacenamiento, caché y Git" />
+            <AppBarButton Icon="Setting" Label="Configuración" Click="OnSettingsClick" ToolTipService.ToolTip="Ajustes de almacenamiento, caché, Git y apariencia por lotes (avanzado)" />
 
             <CommandBar.SecondaryCommands>
                 <AppBarButton Label="Agregar subcarpetas de..." Click="OnAddSubfoldersClick" ToolTipService.ToolTip="Elige una carpeta raíz y agrega sus subcarpetas directas" />

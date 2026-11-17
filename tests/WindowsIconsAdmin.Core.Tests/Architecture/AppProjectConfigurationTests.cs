@@ -58,4 +58,19 @@ public class AppProjectConfigurationTests
         Assert.NotNull(selfContained);
         Assert.Equal("true", selfContained.Value, ignoreCase: true);
     }
+
+    [Fact]
+    public void BatchAppearance_MustResideInSettingsDialogAdvancedSettings()
+    {
+        var csprojPath = FindAppCsprojPath();
+        var appDir = Path.GetDirectoryName(csprojPath)!;
+
+        var mainPageXaml = File.ReadAllText(Path.Combine(appDir, "MainPage.xaml"));
+        Assert.DoesNotContain("OnAppStylesClick", mainPageXaml);
+
+        var settingsDialogXaml = File.ReadAllText(Path.Combine(appDir, "Dialogs", "SettingsDialog.xaml"));
+        Assert.Contains("Ajustes Avanzados", settingsDialogXaml);
+        Assert.Contains("OpenBatchAppearanceButton", settingsDialogXaml);
+        Assert.Contains("OnOpenBatchAppearanceClick", settingsDialogXaml);
+    }
 }

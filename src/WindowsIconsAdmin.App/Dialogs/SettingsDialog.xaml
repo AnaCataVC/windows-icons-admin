@@ -75,6 +75,30 @@
                     </Border>
                 </StackPanel>
 
+                <!-- Sección: Ajustes Avanzados (Apariencia y Temas por Lotes) -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Ajustes Avanzados" FontWeight="SemiBold" Style="{StaticResource SubtitleTextBlockStyle}" />
+
+                    <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="{ThemeResource OverlayCornerRadius}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE790;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="Cambio de Apariencia por Lotes y Temas" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <TextBlock Text="Aplica temas visuales uniformes (contenedores Squircle, Cuadrado Redondeado o Círculo y filtros de color) por lotes a los accesos directos de tus aplicaciones instaladas sin modificar sus ejecutables originales."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+
+                            <Button x:Name="OpenBatchAppearanceButton"
+                                    Content="Abrir gestor de apariencia y temas por lotes..."
+                                    Click="OnOpenBatchAppearanceClick"
+                                    AutomationProperties.Name="Abrir gestor de apariencia y temas por lotes" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
             </StackPanel>
         </ScrollViewer>
 
