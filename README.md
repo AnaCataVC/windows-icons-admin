@@ -25,13 +25,13 @@ Customizing folder icons in Windows has historically been divided between manual
 ### Key Features
 
 - **Automated Rule Engine**: High-throughput rule matching (`Contains`, `StartsWith`, `EndsWith`, `Regex`) with priority ordering and ReDoS catastrophic backtracking protection.
-- **Application Icon Styling & Discovery**: Automatic discovery of installed applications from User and Common Start Menu and Desktop shortcuts. Applies deterministic, gentle visual styling recipes (`Squircle`, `RoundedSquare`, `Circle` containers with saturation, brightness, and contrast adjustments) without touching executable binaries or breaking Authenticode code signatures.
-- **Interactive Style Editor & Live Preview**: Real-time multi-icon preview rendering in memory before applying changes to the Windows Shell.
+- **Advanced Batch Appearance & Theme Styling**: Accessible from **Settings > Advanced Settings**, automatically discovers installed applications from User and Common Start Menu and Desktop shortcuts. Applies deterministic, gentle visual styling recipes (`Squircle`, `RoundedSquare`, `Circle` containers with saturation, brightness, and contrast adjustments) without touching executable binaries or breaking Authenticode code signatures.
+- **Interactive Style Editor & Live Preview**: Real-time multi-icon preview rendering in memory (`StyleEditorDialog`) before applying changes to the Windows Shell.
 - **Dedicated App Transaction Log & Undo**: Atomic application undo history persisted in `%LOCALAPPDATA%\WindowsIconsAdmin\State\app-undo.json`, with physical original snapshot backups and one-click batch or full restoration.
-- **Pure-Stream ICO Encoding**: Generates compliant 7-resolution `.ico` binaries (16px to 256px) from arbitrary PNGs and pure RGBA canvas buffers with chunk-level integrity verification.
+- **Pure-Stream ICO Encoding**: Generates compliant 7-resolution `.ico` binaries (16px to 256px) from arbitrary PNGs and pure RGBA canvas buffers (`IcoEncoder`, `PureIcoEncoder`) with chunk-level integrity verification.
 - **Central Cache & Dual Storage Modality**: Enforces Central Cache (`%LOCALAPPDATA%\WindowsIconsAdmin\Icons\`) by default to keep folders 100% clean without loose icon assets. Portable embedded mode (`.folder_icon.ico`) is supported as an opt-in advanced setting for removable USB drives.
 - **Windows 11 Navigation Pane & Drive Icons**: Customizable icons for Windows 11 Explorer sidebar items and drive volumes with safe OneDrive restoration safeguards.
-- **Persistent Configuration & Settings Dialog**: Thread-safe configuration system via `AppSettingsService` (`settings.json`) paired with a dedicated modal `SettingsDialog` accessible from the top toolbar, featuring automated global `.gitignore` integration for `desktop.ini`.
+- **Persistent Configuration & Settings Dialog**: Thread-safe configuration system via `AppSettingsService` (`settings.json`) paired with a dedicated modal `SettingsDialog` accessible from the top toolbar, featuring automated global `.gitignore` integration for `desktop.ini` and access to advanced batch theme styling.
 - **Deterministic Transactional Undo**: Multi-batch snapshot history with atomic file persistence and automatic corruption recovery.
 - **Zero-Disruption Shell Invalidation**: Real-time icon refresh via dual-stage `SHChangeNotify` Win32 notifications without restarting `explorer.exe`.
 
@@ -44,43 +44,39 @@ The solution enforces strict separation of concerns, decoupling pure domain algo
 ```mermaid
 flowchart TD
     subgraph UI ["Presentation Layer"]
-        App["WindowsIconsAdmin.App (WinUI 3)<br/>(MainPage, Dialogs & Settings)"]
+        App["WindowsIconsAdmin.App (WinUI 3)<br/>(MainPage, Dialogs & Advanced Settings)"]
     end
 
-    subgraph Shell ["Platform Services"]
-        ShellSvc["WindowsIconsAdmin.ShellServices<br/>(Win32 P/Invoke & desktop.ini)"]
+    subgraph Core ["Core Domain (WindowsIconsAdmin.Core)"]
+        Shell["Shell<br/>(ShellIconService, IniHelper & SpecialFolders)"]
+        Rules["Rules<br/>(RuleEngine, FolderRule & ReDoS Safe)"]
+        Imaging["Imaging<br/>(IcoEncoder & PureIcoEncoder)"]
+        Styling["Styling<br/>(IconStyleRenderer, IconStyle & StyleStore)"]
+        Apps["Apps<br/>(AppDiscoveryService & AppIconService)"]
+        History["History<br/>(UndoStore & AppIconUndoStore)"]
+        Storage["Storage<br/>(IconStorageService & CentralCache)"]
+        Settings["Settings<br/>(AppSettingsService & AppSettings)"]
+        Safety["Safety<br/>(SystemFolderGuard)"]
     end
 
-    subgraph Core ["Core Domain (Zero Dependencies)"]
-        Rules["RuleEngine<br/>(Pattern Matching & ReDoS Safe)"]
-        Imaging["IcoEncoder<br/>(7-Layer DIB + PNG256)"]
-        Styling["Styling<br/>(Shape Containers & Palette Engine)"]
-        Apps["Apps<br/>(AppDiscovery & ShortcutApplier)"]
-        History["UndoStore<br/>(Transactional JSON + Atomic Write)"]
-        Storage["IconStorageService<br/>(CentralCache & Portable Modes)"]
-        Settings["AppSettingsService<br/>(Persistent JSON Configuration)"]
-        Safety["SystemFolderGuard<br/>(System & Known Folder Protection)"]
-    end
-
-    App --> ShellSvc
     App --> Core
-    ShellSvc --> Core
 ```
 
 ### Module Responsibilities
 
-- **`WindowsIconsAdmin.Core`**: Target-independent class library containing pure logic:
-  - `Rules`: High-throughput folder name rule evaluation (`FolderRule`, `RuleEngine`).
-  - `Imaging`: In-memory PNG-to-ICO multi-resolution conversion (`IcoEncoder`).
-  - `Styling`: High-performance deterministic icon styling, container geometry (`Squircle`, `RoundedSquare`, `Circle`), and palette filtering (`AppStyleEngine`, `AppStyleOptions`).
-  - `Apps`: Application shortcut discovery, icon extraction, safe `.lnk` redirection, and application transaction undo store (`AppDiscoveryService`, `ShortcutIconApplier`, `AppUndoStore`).
-  - `History`: Thread-safe, atomic undo/redo transaction log (`UndoStore`).
+- **`WindowsIconsAdmin.Core`**: Target-independent class library containing domain logic:
+  - `Rules`: High-throughput folder name rule evaluation and persistence (`FolderRule`, `RuleEngine`, `RuleStore`).
+  - `Imaging`: In-memory PNG-to-ICO multi-resolution conversion (`IcoEncoder`, `PureIcoEncoder`).
+  - `Styling`: High-performance deterministic icon styling, container geometry (`Squircle`, `RoundedSquare`, `Circle`), and palette filtering (`IconStyle`, `IconStyleRenderer`, `StyleStore`, `RenderedIconCache`).
+  - `Apps`: Application shortcut discovery, icon extraction, safe `.lnk` redirection, and batch orchestration (`AppDiscoveryService`, `AppIconExtractor`, `AppIconService`, `WindowsShortcutService`).
+  - `History`: Thread-safe, atomic undo/redo transaction logs (`UndoStore`, `AppIconUndoStore`, `OriginalSnapshotStore`).
   - `Storage`: Storage engine managing Central Cache (`%LOCALAPPDATA%`) and optional Portable Mode (`IconStorageService`, `IconStorageMode`).
   - `Settings`: Thread-safe persistent configuration store (`AppSettings`, `AppSettingsService`).
   - `Safety`: System folder protection, path traversal defenses, and restricted file extension guards (`SystemFolderGuard`).
-- **`WindowsIconsAdmin.ShellServices`**: Encapsulates Win32 filesystem attributes, `desktop.ini` generation, and shell cache refresh.
-- **`WindowsIconsAdmin.App`**: Modern Windows 11 Fluent UI application (WinUI 3 / Windows App SDK) featuring multi-folder drag-and-drop, batch progress monitoring, rule management, modal `AppIconsDialog`, `AppStyleEditorDialog`, and a comprehensive `SettingsDialog`.
-- **`installer/`**: Official Inno Setup 6 packaging producing the single signed Setup deliverable (`WindowsIconsAdmin_Setup.exe`).
+  - `Shell`: Encapsulates Win32 filesystem attributes, `desktop.ini` generation, special folder CLSIDs, and shell cache refresh (`ShellIconService`, `IniHelper`, `SpecialFoldersService`, `FileTypeIconService`).
+  - `Layout`: DPI-aware initial window sizing (`WindowSizing`, `SizePx`).
+- **`WindowsIconsAdmin.App`**: Modern Windows 11 Fluent UI application (WinUI 3 / Windows App SDK) featuring multi-folder drag-and-drop, batch progress monitoring, `RulesDialog`, `SystemIconsDialog`, and `SettingsDialog` (housing Advanced Settings for portable mode and batch theme/appearance customization via `AppIconsDialog` and `StyleEditorDialog`).
+- **`installer/`**: Official Inno Setup 6 packaging producing the single Setup deliverable (`WindowsIconsAdmin_Setup.exe`).
 
 ---
 
@@ -130,8 +126,8 @@ dotnet test tests/WindowsIconsAdmin.Core.Tests/WindowsIconsAdmin.Core.Tests.cspr
 ```
 
 ```text
-Total Tests:     505
-Passed:          505 (100%)
+Total Tests:     506
+Passed:          506 (100%)
 Failed:            0
 Skipped:           0
 Duration:        ~2.0s
@@ -194,10 +190,9 @@ windows-icons-admin/
 │   └── setup.iss          # Inno Setup packaging script
 ├── src/
 │   ├── WindowsIconsAdmin.App/
-│   │   ├── Dialogs/       # SettingsDialog, RulesDialog, SystemIconsDialog, AppIconsDialog, AppStyleEditorDialog
+│   │   ├── Dialogs/       # SettingsDialog, RulesDialog, SystemIconsDialog, AppIconsDialog, StyleEditorDialog
 │   │   ├── Services/      # WinUI 3 dialog and picker helpers
-│   │   ├── ViewModels/    # MVVM models and folder/app item tracking
-│   │   └── Views/         # WinUI 3 pages and window controls
+│   │   └── ViewModels/    # MVVM models and folder/app item tracking
 │   └── WindowsIconsAdmin.Core/
 │       ├── Apps/          # App shortcut discovery, extraction, and redirection
 │       ├── History/       # Transactional undo and rolling snapshot store

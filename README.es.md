@@ -25,13 +25,13 @@ La personalización de iconos de carpetas en Windows tradicionalmente ha estado 
 ### Características Principales
 
 - **Motor de Reglas Automatizado**: Coincidencia de reglas de alto rendimiento (`Contains`, `StartsWith`, `EndsWith`, `Regex`) con priorización y protección contra retroceso catastrófico ReDoS.
-- **Estilización y Descubrimiento de Iconos de Aplicaciones**: Descubrimiento automático de aplicaciones instaladas a partir de accesos directos del Menú Inicio y Escritorio. Aplica recetas de tratamiento visual deterministas y suaves (contenedores `Squircle`, `RoundedSquare`, `Circle` con ajustes de saturación, brillo y contraste) sin alterar archivos ejecutables ni invalidar firmas digitales Authenticode.
-- **Editor Interactivo de Estilos con Vista Previa en Vivo**: Renderizado reactivo de múltiples iconos en memoria en tiempo real antes de aplicar cualquier cambio al Shell de Windows.
+- **Cambio de Apariencia y Temas por Lotes (Ajustes Avanzados)**: Accesible desde **Configuración > Ajustes Avanzados**, descubre automáticamente las aplicaciones instaladas a partir de accesos directos del Menú Inicio y Escritorio. Aplica recetas de tratamiento visual deterministas y suaves (contenedores `Squircle`, `RoundedSquare`, `Circle` con ajustes de saturación, brillo y contraste) sin alterar archivos ejecutables ni invalidar firmas digitales Authenticode.
+- **Editor Interactivo de Estilos con Vista Previa en Vivo**: Renderizado reactivo de múltiples iconos en memoria en tiempo real (`StyleEditorDialog`) antes de aplicar cualquier cambio al Shell de Windows.
 - **Registro Transaccional Dedicado y Undo para Apps**: Historial atómico de aplicaciones persistido en `%LOCALAPPDATA%\WindowsIconsAdmin\State\app-undo.json`, con copias de respaldo de iconos originales y restauración masiva o por lotes con un solo clic.
-- **Codificación ICO Pura en Memoria**: Generación de binarios `.ico` conformes de 7 resoluciones estándar (16px a 256px) a partir de imágenes PNG arbitrarias y buffers RGBA puros con verificación de integridad a nivel de chunks.
+- **Codificación ICO Pura en Memoria**: Generación de binarios `.ico` conformes de 7 resoluciones estándar (16px a 256px) a partir de imágenes PNG arbitrarias y buffers RGBA puros (`IcoEncoder`, `PureIcoEncoder`) con verificación de integridad a nivel de chunks.
 - **Caché Central y Modalidad Dual de Almacenamiento**: Aplica Caché Central (`%LOCALAPPDATA%\WindowsIconsAdmin\Icons\`) de forma predeterminada para conservar las carpetas 100% limpias sin archivos de icono adicionales. El modo portable incrustado (`.folder_icon.ico`) se mantiene como opción avanzada opcional para unidades USB extraíbles.
 - **Panel de Navegación e Iconos de Unidades de Windows 11**: Personalización de iconos para elementos de la barra lateral del Explorador de Windows 11 y volúmenes de disco con salvaguardas de restauración segura para OneDrive.
-- **Configuración Persistente y Diálogo de Ajustes**: Sistema de configuración seguro entre subprocesos mediante `AppSettingsService` (`settings.json`) acompañado de un diálogo modal `SettingsDialog` accesible desde la barra superior de herramientas, con integración automatizada de `.gitignore` global para `desktop.ini`.
+- **Configuración Persistente y Diálogo de Ajustes**: Sistema de configuración seguro entre subprocesos mediante `AppSettingsService` (`settings.json`) acompañado de un diálogo modal `SettingsDialog` accesible desde la barra superior de herramientas, con integración automatizada de `.gitignore` global para `desktop.ini` y acceso a los Ajustes Avanzados de temas por lotes.
 - **Historial Transaccional Determinista**: Registro de instantáneas por lotes con persistencia atómica y autorrecuperación ante corrupción.
 - **Invalidación del Shell sin Interrupciones**: Refresco en tiempo real mediante notificaciones Win32 de doble etapa con `SHChangeNotify` sin reiniciar `explorer.exe`.
 
@@ -44,43 +44,39 @@ La solución aplica una estricta separación de responsabilidades, desacoplando 
 ```mermaid
 flowchart TD
     subgraph UI ["Capa de Presentación"]
-        App["WindowsIconsAdmin.App (WinUI 3)<br/>(MainPage, Diálogos y Ajustes)"]
+        App["WindowsIconsAdmin.App (WinUI 3)<br/>(MainPage, Diálogos y Ajustes Avanzados)"]
     end
 
-    subgraph Shell ["Servicios de Plataforma"]
-        ShellSvc["WindowsIconsAdmin.ShellServices<br/>(Win32 P/Invoke y desktop.ini)"]
+    subgraph Core ["Dominio Central (WindowsIconsAdmin.Core)"]
+        Shell["Shell<br/>(ShellIconService, IniHelper y SpecialFolders)"]
+        Rules["Rules<br/>(RuleEngine, FolderRule y Protección ReDoS)"]
+        Imaging["Imaging<br/>(IcoEncoder y PureIcoEncoder)"]
+        Styling["Styling<br/>(IconStyleRenderer, IconStyle y StyleStore)"]
+        Apps["Apps<br/>(AppDiscoveryService y AppIconService)"]
+        History["History<br/>(UndoStore y AppIconUndoStore)"]
+        Storage["Storage<br/>(IconStorageService y Caché Central)"]
+        Settings["Settings<br/>(AppSettingsService y AppSettings)"]
+        Safety["Safety<br/>(SystemFolderGuard)"]
     end
 
-    subgraph Core ["Dominio Central (Cero Dependencias)"]
-        Rules["RuleEngine<br/>(Evaluación de Reglas y Protección ReDoS)"]
-        Imaging["IcoEncoder<br/>(7 Capas DIB + PNG256)"]
-        Styling["Styling<br/>(Contenedores Geométricos y Motor de Paleta)"]
-        Apps["Apps<br/>(Descubrimiento y Redirección de Accesos LNK)"]
-        History["UndoStore<br/>(JSON Transaccional y Escritura Atómica)"]
-        Storage["IconStorageService<br/>(Modos Caché Central y Portable)"]
-        Settings["AppSettingsService<br/>(Configuración JSON Persistente)"]
-        Safety["SystemFolderGuard<br/>(Protección de Sistema y Known Folders)"]
-    end
-
-    App --> ShellSvc
     App --> Core
-    ShellSvc --> Core
 ```
 
 ### Responsabilidades por Módulo
 
-- **`WindowsIconsAdmin.Core`**: Biblioteca de clases independiente del sistema operativo con lógica pura:
-  - `Rules`: Evaluación de nombres de carpetas según reglas declarativas (`FolderRule`, `RuleEngine`).
-  - `Imaging`: Conversión en memoria de PNG a ICO multirresolución (`IcoEncoder`).
-  - `Styling`: Motor de estilización determinista de iconos, geometría de contenedores (`Squircle`, `RoundedSquare`, `Circle`) y filtrado cromático (`AppStyleEngine`, `AppStyleOptions`).
-  - `Apps`: Descubrimiento de accesos directos, extracción de iconos, redirección segura de archivos `.lnk` y registro transaccional de deshacer para apps (`AppDiscoveryService`, `ShortcutIconApplier`, `AppUndoStore`).
-  - `History`: Registro transaccional seguro para subprocesos con reversión atómica (`UndoStore`).
+- **`WindowsIconsAdmin.Core`**: Biblioteca de clases con lógica de dominio desacoplada de la UI:
+  - `Rules`: Evaluación y persistencia de reglas declarativas (`FolderRule`, `RuleEngine`, `RuleStore`).
+  - `Imaging`: Conversión en memoria de PNG a ICO multirresolución (`IcoEncoder`, `PureIcoEncoder`).
+  - `Styling`: Motor de estilización determinista de iconos, geometría de contenedores (`Squircle`, `RoundedSquare`, `Circle`) y filtrado cromático (`IconStyle`, `IconStyleRenderer`, `StyleStore`, `RenderedIconCache`).
+  - `Apps`: Descubrimiento de accesos directos, extracción de iconos, redirección segura de archivos `.lnk` y aplicación por lotes (`AppDiscoveryService`, `AppIconExtractor`, `AppIconService`, `WindowsShortcutService`).
+  - `History`: Registros transaccionales seguros para subprocesos con reversión atómica (`UndoStore`, `AppIconUndoStore`, `OriginalSnapshotStore`).
   - `Storage`: Motor de almacenamiento que gestiona la Caché Central (`%LOCALAPPDATA%`) y el Modo Portable opcional (`IconStorageService`, `IconStorageMode`).
   - `Settings`: Almacén de configuración persistente hilo-seguro (`AppSettings`, `AppSettingsService`).
   - `Safety`: Protección de carpetas del sistema, barreras contra path traversal y bloqueo de extensiones restringidas (`SystemFolderGuard`).
-- **`WindowsIconsAdmin.ShellServices`**: Encapsula atributos de archivos Win32, generación de `desktop.ini` y refresco de caché del explorador.
-- **`WindowsIconsAdmin.App`**: Aplicación moderna con diseño Fluent para Windows 11 (WinUI 3 / Windows App SDK) con soporte de arrastrar y soltar multicarpetas, monitor de progreso por lotes, diálogos modales `AppIconsDialog`, `AppStyleEditorDialog`, diálogo de reglas y un completo `SettingsDialog`.
-- **`installer/`**: Script oficial de empaquetado de Inno Setup 6 que genera el instalador oficial firmado único (`WindowsIconsAdmin_Setup.exe`).
+  - `Shell`: Encapsula atributos de archivos Win32, generación de `desktop.ini`, CLSIDs de carpetas especiales y refresco de caché del explorador (`ShellIconService`, `IniHelper`, `SpecialFoldersService`, `FileTypeIconService`).
+  - `Layout`: Dimensionamiento inicial de ventana sensible a DPI (`WindowSizing`, `SizePx`).
+- **`WindowsIconsAdmin.App`**: Aplicación moderna con diseño Fluent para Windows 11 (WinUI 3 / Windows App SDK) con soporte de arrastrar y soltar multicarpetas, monitor de progreso por lotes, `RulesDialog`, `SystemIconsDialog` y `SettingsDialog` (que aloja los Ajustes Avanzados de modo portable y personalización de apariencia/temas por lotes mediante `AppIconsDialog` y `StyleEditorDialog`).
+- **`installer/`**: Script oficial de empaquetado de Inno Setup 6 que genera el instalador oficial único (`WindowsIconsAdmin_Setup.exe`).
 
 ---
 
@@ -122,7 +118,7 @@ WindowsIconsAdmin.Core se construyó aplicando principios rigurosos de **Ingenie
 
 1. **Contrato de Interfaz Congelado**: Las firmas de API, condiciones de borde y criterios de aceptación se definieron de forma previa en [core-services.contract.md](docs/contracts/core-services.contract.md), [safety-and-integrity.contract.md](docs/contracts/safety-and-integrity.contract.md) y [window-sizing.contract.md](docs/contracts/window-sizing.contract.md) antes de implementar código.
 2. **Implementación y Pruebas Aisladas**: Las suites de pruebas unitarias se escribieron contra el contrato sin depender de los detalles internos de implementación.
-3. **Verificación Exhaustiva**: 459 pruebas unitarias verifican límites de error, seguridad entre subprocesos, tiempos límite ante retroceso catastrófico en expresiones regulares, formato binario ICO, salvaguardas de directorios del sistema y durabilidad de la configuración persistente.
+3. **Verificación Exhaustiva**: La suite automatizada Cleanroom valida límites de error, seguridad entre subprocesos, tiempos límite ante retroceso catastrófico en expresiones regulares, formato binario ICO, salvaguardas de directorios del sistema, pipeline de estilización por lotes y durabilidad de la configuración persistente con un 100% de aprobación y cero regresiones.
 
 ```powershell
 # Ejecutar suite de pruebas Cleanroom completa
@@ -130,8 +126,8 @@ dotnet test tests/WindowsIconsAdmin.Core.Tests/WindowsIconsAdmin.Core.Tests.cspr
 ```
 
 ```text
-Pruebas totales: 459
-Superadas:       459 (100%)
+Pruebas totales: 506
+Superadas:       506 (100%)
 Fallidas:          0
 Omitidas:          0
 Duración:        ~2.0s
@@ -194,10 +190,9 @@ windows-icons-admin/
 │   └── setup.iss          # Script de empaquetado Inno Setup
 ├── src/
 │   ├── WindowsIconsAdmin.App/
-│   │   ├── Dialogs/       # SettingsDialog, RulesDialog, SystemIconsDialog, AppIconsDialog, AppStyleEditorDialog
+│   │   ├── Dialogs/       # SettingsDialog, RulesDialog, SystemIconsDialog, AppIconsDialog, StyleEditorDialog
 │   │   ├── Services/      # Diálogos y selectores de WinUI 3
-│   │   ├── ViewModels/    # Modelos MVVM y seguimiento de carpetas y apps
-│   │   └── Views/         # Páginas y controles de ventana de WinUI 3
+│   │   └── ViewModels/    # Modelos MVVM y seguimiento de carpetas y apps
 │   └── WindowsIconsAdmin.Core/
 │       ├── Apps/          # Descubrimiento, extracción y redirección de accesos directos
 │       ├── History/       # Historial de transacciones de deshacer

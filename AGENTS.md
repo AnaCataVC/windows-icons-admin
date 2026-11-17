@@ -9,13 +9,18 @@ This document defines architecture invariants, development workflows, quality ga
 **Windows Icons Admin** is a modern Windows 11 desktop application engineered with .NET 9 WinUI 3 (Windows App SDK) and Cleanroom Software Engineering principles. It automates Windows folder icon customization, rule-based matching, multi-resolution chunk-verified ICO generation, and transactional undo/redo without disrupting the Windows Shell.
 
 ### Clean Architecture & Modularity
-- **`WindowsIconsAdmin.Core`**: Target-independent class library containing 100% pure domain logic without platform or UI dependencies:
-  - `Rules/`: Pattern-matching engine (`FolderRule`, `RuleEngine`) with ReDoS protection.
-  - `Imaging/`: In-memory PNG-to-ICO multi-resolution conversion (`IcoEncoder`) with 7-layer DIB + PNG256 encoding.
-  - `History/`: Thread-safe, atomic undo/redo transaction log (`UndoStore`).
+- **`WindowsIconsAdmin.Core`**: Target-independent class library containing 100% pure domain logic without UI dependencies:
+  - `Rules/`: Pattern-matching engine (`FolderRule`, `RuleEngine`, `RuleStore`) with ReDoS protection.
+  - `Imaging/`: In-memory PNG-to-ICO multi-resolution conversion (`IcoEncoder`, `PureIcoEncoder`) with 7-layer DIB + PNG256 encoding.
+  - `Styling/`: Deterministic geometric containers (`Squircle`, `RoundedSquare`, `Circle`), color treatment pipeline, and style persistence (`IconStyle`, `IconStyleRenderer`, `StyleStore`).
+  - `Apps/`: Installed app discovery, icon extraction, and non-destructive `.lnk` shortcut redirection (`AppDiscoveryService`, `AppIconExtractor`, `AppIconService`, `WindowsShortcutService`).
+  - `History/`: Thread-safe, atomic undo/redo transaction logs (`UndoStore`, `AppIconUndoStore`, `OriginalSnapshotStore`).
+  - `Storage/`: Central cache (`%LOCALAPPDATA%`) and opt-in portable icon storage (`IconStorageService`, `IconStorageMode`).
+  - `Settings/`: Thread-safe persistent JSON configuration (`AppSettings`, `AppSettingsService`).
   - `Safety/`: System folder protection and traversal guards (`SystemFolderGuard`).
-  - `Shell/`: Hardened `desktop.ini` parsers and shell notification services.
-- **`WindowsIconsAdmin.App`**: Unpackaged WinUI 3 desktop application featuring Windows 11 Fluent Design and Mica backdrop.
+  - `Shell/`: Hardened `desktop.ini` parsers, file-type/special-folder services, and shell notification services (`IniHelper`, `ShellIconService`, `SpecialFoldersService`, `FileTypeIconService`).
+  - `Layout/`: DPI-aware initial window sizing (`WindowSizing`, `SizePx`).
+- **`WindowsIconsAdmin.App`**: Unpackaged WinUI 3 desktop application featuring Windows 11 Fluent Design and Mica backdrop (`MainPage`, `RulesDialog`, `SystemIconsDialog`, and `SettingsDialog` housing Advanced Settings including `AppIconsDialog` and `StyleEditorDialog`).
 - **`tests/WindowsIconsAdmin.Core.Tests`**: Cleanroom unit test suite validating contracts, regex timeouts, binary ICO structures, and concurrency.
 - **`installer/setup.iss`**: Inno Setup packaging script producing the official Setup executable.
 
@@ -45,7 +50,13 @@ This document defines architecture invariants, development workflows, quality ga
    git push origin vX.Y.Z
    gh run watch (gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')
    ```
-3. **Local Compilation & Packaging (Fallback)**:
+3. **Bilingual Release Notes & Asset Verification**:
+   Once `.github/workflows/release.yml` finishes publishing the release, replace the auto-generated changelog with curated bilingual release notes matching the repository format (`## [X.Y.Z] - YYYY-MM-DD`, `### English`, `### Español`, zero emojis or country flags) and verify the single deliverable:
+   ```powershell
+   gh release edit vX.Y.Z --title "vX.Y.Z - <Short Summary>" --notes "<Bilingual Markdown>"
+   gh release view vX.Y.Z --json assets
+   ```
+4. **Local Compilation & Packaging (Fallback)**:
    - Publish Self-Contained Deployment:
      ```powershell
      dotnet publish src/WindowsIconsAdmin.App/WindowsIconsAdmin.App.csproj -c Release -r win-x64 --self-contained true -o dist/win-x64
@@ -54,7 +65,7 @@ This document defines architecture invariants, development workflows, quality ga
      ```powershell
      & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /DMyAppVersion=X.Y.Z installer/setup.iss
      ```
-4. **Local Cleanliness**: Purge local `releases/` directory post-upload to avoid disk clutter.
+5. **Local Cleanliness**: Purge local `releases/` directory post-upload to avoid disk clutter.
 
 ---
 
