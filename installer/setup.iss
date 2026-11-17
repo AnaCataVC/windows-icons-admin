@@ -1,7 +1,7 @@
 ; Inno Setup Script for Windows Icons Admin
 #define MyAppName "Windows Icons Admin"
 #ifndef MyAppVersion
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.2"
 #endif
 #define MyAppPublisher "Windows Icons Admin"
 #define MyAppExeName "WindowsIconsAdmin.App.exe"
