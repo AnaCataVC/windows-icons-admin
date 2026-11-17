@@ -104,6 +104,23 @@ public sealed class AppItemViewModel : INotifyPropertyChanged
         }
     }
 
+    public AppItemViewModel(InstalledApp app, RgbaCanvas? baselineCanvas, RgbaCanvas? styledCanvas)
+    {
+        App = app;
+        _isSelected = IsSupported;
+        BaselineCanvas = baselineCanvas;
+
+        if (baselineCanvas != null)
+        {
+            OriginalPreview = RgbaImageHelper.ToWriteableBitmap(baselineCanvas);
+        }
+
+        if (styledCanvas != null)
+        {
+            StyledPreview = RgbaImageHelper.ToWriteableBitmap(styledCanvas);
+        }
+    }
+
     public void UpdatePreview(IconStyle style)
     {
         if (BaselineCanvas == null) return;

@@ -46,7 +46,7 @@
 
             <ComboBox x:Name="StyleComboBox" Grid.Column="0" Header="Estilo visual a aplicar" HorizontalAlignment="Stretch" SelectionChanged="OnStyleSelectionChanged" />
             <Button Grid.Column="1" VerticalAlignment="Bottom" Content="Editar estilos..." Click="OnOpenStyleEditorClick" ToolTipService.ToolTip="Personalizar forma, color y parámetros de tratamiento" />
-            <Button Grid.Column="2" VerticalAlignment="Bottom" Content="Escanear aplicaciones" Style="{StaticResource AccentButtonStyle}" Click="OnScanAppsClick" ToolTipService.ToolTip="Volver a buscar accesos directos instalados en el sistema">
+            <Button Grid.Column="2" VerticalAlignment="Bottom" Content="Escanear aplicaciones" Click="OnScanAppsClick" ToolTipService.ToolTip="Volver a buscar accesos directos instalados en el sistema">
                 <Button.KeyboardAccelerators>
                     <KeyboardAccelerator Key="F5" />
                 </Button.KeyboardAccelerators>
@@ -105,6 +105,7 @@
                                           IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
                                           IsEnabled="{x:Bind IsSupported}"
                                           VerticalAlignment="Center"
+                                          AutomationProperties.Name="{x:Bind DisplayName}"
                                           ToolTipService.ToolTip="Incluir en el lote de personalización" />
 
                                 <!-- Preview del icono estilizado -->
@@ -113,7 +114,8 @@
                                        Width="36"
                                        Height="36"
                                        Stretch="Uniform"
-                                       VerticalAlignment="Center" />
+                                       VerticalAlignment="Center"
+                                       AutomationProperties.Name="{x:Bind DisplayName}" />
 
                                 <!-- Información de la app -->
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">

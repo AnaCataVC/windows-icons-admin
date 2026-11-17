@@ -19,6 +19,7 @@ public sealed partial class AppIconsDialog : ContentDialog
     private IconStyle _currentStyle;
     private CancellationTokenSource? _currentCts;
     private bool _isBusy;
+    private bool _hasInitialScanCompleted;
 
     public AppIconsDialog(
         IAppDiscoveryService? discoveryService = null,
@@ -36,14 +37,28 @@ public sealed partial class AppIconsDialog : ContentDialog
         LoadStylesIntoUi();
         AppsListView.ItemsSource = _displayedAppItems;
 
-        Loaded += async (s, e) => await ScanAppsAsync();
+        Loaded += OnDialogLoaded;
+    }
+
+    private async void OnDialogLoaded(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || _hasInitialScanCompleted) return;
+        _hasInitialScanCompleted = true;
+        await ScanAppsAsync();
     }
 
     private void LoadStylesIntoUi()
     {
         StyleComboBox.Items.Clear();
-        foreach (var style in _availableStyles)
+        var selectedIdx = 0;
+        for (var i = 0; i < _availableStyles.Count; i++)
         {
+            var style = _availableStyles[i];
+            if (style.Id.Equals(_currentStyle.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                selectedIdx = i;
+            }
+
             StyleComboBox.Items.Add(new ComboBoxItem
             {
                 Content = $"{style.Name} ({style.Container.Shape})",
@@ -53,7 +68,7 @@ public sealed partial class AppIconsDialog : ContentDialog
 
         if (StyleComboBox.Items.Count > 0)
         {
-            StyleComboBox.SelectedIndex = 0;
+            StyleComboBox.SelectedIndex = selectedIdx;
         }
     }
 
@@ -64,20 +79,65 @@ public sealed partial class AppIconsDialog : ContentDialog
 
         _allAppItems.Clear();
         _displayedAppItems.Clear();
+        var activeStyle = _currentStyle;
 
-        await Task.Run(() =>
+        var extractedItems = await Task.Run(() =>
         {
             var apps = _discoveryService.DiscoverInstalledApps();
+            var prepared = new List<(InstalledApp App, RgbaCanvas? Baseline, RgbaCanvas? Styled)>(apps.Count);
 
-            App.AppDispatcherQueue?.TryEnqueue(() =>
+            foreach (var app in apps)
             {
-                foreach (var app in apps)
+                RgbaCanvas? baseline = null;
+                RgbaCanvas? styled = null;
+                try
                 {
-                    _allAppItems.Add(new AppItemViewModel(app, _currentStyle));
+                    baseline = AppIconExtractor.ExtractAppIcon(app, unboxWhitePlate: true);
+                    if (baseline != null)
+                    {
+                        styled = IconStyleRenderer.Render(baseline, activeStyle, canvasSize: 64, enableEffects: true);
+                    }
                 }
-                ApplySearchFilter();
-            });
+                catch
+                {
+                    // Fallback handled gracefully
+                }
+
+                prepared.Add((app, baseline, styled));
+            }
+
+            return prepared;
         });
+
+        var tcs = new TaskCompletionSource();
+        if (App.AppDispatcherQueue != null)
+        {
+            App.AppDispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    foreach (var (app, baseline, styled) in extractedItems)
+                    {
+                        _allAppItems.Add(new AppItemViewModel(app, baseline, styled));
+                    }
+                    ApplySearchFilter();
+                    tcs.TrySetResult();
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            });
+            await tcs.Task;
+        }
+        else
+        {
+            foreach (var (app, baseline, styled) in extractedItems)
+            {
+                _allAppItems.Add(new AppItemViewModel(app, baseline, styled));
+            }
+            ApplySearchFilter();
+        }
 
         SetProgress(false);
     }

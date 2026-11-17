@@ -70,12 +70,12 @@
                         <TextBox x:Name="BgColorBox" Text="#E6DBFA" TextChanged="OnParameterChanged" />
                         <!-- Paleta de colores rápidos -->
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Button Padding="0" Width="28" Height="28" Background="#E6DBFA" ToolTipService.ToolTip="Lavanda Suave" Click="OnPaletteColorClick" Tag="#E6DBFA" />
-                            <Button Padding="0" Width="28" Height="28" Background="#D1F2D9" ToolTipService.ToolTip="Menta Suave" Click="OnPaletteColorClick" Tag="#D1F2D9" />
-                            <Button Padding="0" Width="28" Height="28" Background="#FCD5CE" ToolTipService.ToolTip="Rosa Pastel" Click="OnPaletteColorClick" Tag="#FCD5CE" />
-                            <Button Padding="0" Width="28" Height="28" Background="#D0E8FF" ToolTipService.ToolTip="Azul Cielo" Click="OnPaletteColorClick" Tag="#D0E8FF" />
-                            <Button Padding="0" Width="28" Height="28" Background="#2D3142" ToolTipService.ToolTip="Grafito Oscuro" Click="OnPaletteColorClick" Tag="#2D3142" />
-                            <Button Padding="0" Width="28" Height="28" Background="#1E1E2E" ToolTipService.ToolTip="Pizarra Nocturna" Click="OnPaletteColorClick" Tag="#1E1E2E" />
+                            <Button Padding="0" Width="28" Height="28" Background="#E6DBFA" AutomationProperties.Name="Color Lavanda Suave" ToolTipService.ToolTip="Lavanda Suave" Click="OnPaletteColorClick" Tag="#E6DBFA" />
+                            <Button Padding="0" Width="28" Height="28" Background="#D1F2D9" AutomationProperties.Name="Color Menta Suave" ToolTipService.ToolTip="Menta Suave" Click="OnPaletteColorClick" Tag="#D1F2D9" />
+                            <Button Padding="0" Width="28" Height="28" Background="#FCD5CE" AutomationProperties.Name="Color Rosa Pastel" ToolTipService.ToolTip="Rosa Pastel" Click="OnPaletteColorClick" Tag="#FCD5CE" />
+                            <Button Padding="0" Width="28" Height="28" Background="#D0E8FF" AutomationProperties.Name="Color Azul Cielo" ToolTipService.ToolTip="Azul Cielo" Click="OnPaletteColorClick" Tag="#D0E8FF" />
+                            <Button Padding="0" Width="28" Height="28" Background="#2D3142" AutomationProperties.Name="Color Grafito Oscuro" ToolTipService.ToolTip="Grafito Oscuro" Click="OnPaletteColorClick" Tag="#2D3142" />
+                            <Button Padding="0" Width="28" Height="28" Background="#1E1E2E" AutomationProperties.Name="Color Pizarra Nocturna" ToolTipService.ToolTip="Pizarra Nocturna" Click="OnPaletteColorClick" Tag="#1E1E2E" />
                         </StackPanel>
 
                         <!-- Padding Slider -->
@@ -155,13 +155,13 @@
                                     </Grid.ColumnDefinitions>
 
                                     <!-- Icono Original -->
-                                    <Image Grid.Column="0" Source="{x:Bind OriginalImageSource}" Width="40" Height="40" Stretch="Uniform" />
+                                    <Image Grid.Column="0" Source="{x:Bind OriginalImageSource}" Width="40" Height="40" Stretch="Uniform" AutomationProperties.Name="{x:Bind DisplayName}" />
 
                                     <!-- Flecha de transición -->
                                     <FontIcon Grid.Column="1" Glyph="&#xE72A;" FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
 
                                     <!-- Icono Estilizado -->
-                                    <Image Grid.Column="2" Source="{x:Bind StyledImageSource, Mode=OneWay}" Width="48" Height="48" Stretch="Uniform" />
+                                    <Image Grid.Column="2" Source="{x:Bind StyledImageSource, Mode=OneWay}" Width="48" Height="48" Stretch="Uniform" AutomationProperties.Name="{x:Bind DisplayName}" />
 
                                     <!-- Nombre de la aplicación -->
                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
